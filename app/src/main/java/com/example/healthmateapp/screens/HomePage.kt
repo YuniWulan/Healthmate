@@ -1,6 +1,7 @@
 package com.example.healthmateapp.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,22 +39,44 @@ data class FoodItem(
 @Composable
 fun HomeScreen(
     userName: String = "Jonathan",
+    bloodPressureValue: String = "120/80",
+    bloodGlucoseValue: String = "95",
+    cholesterolValue: String = "180",
+    bodyCompositionValue: String = "22.5",
     onNotificationClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onReminderClick: (Reminder) -> Unit = {},
     onRecordConsumptionClick: () -> Unit = {},
-    onLogoutClick: () -> Unit = {}
+    onLogoutClick: () -> Unit = {},
+    onBottomNavClick: (String) -> Unit = {},
+    onInputBloodPressure: () -> Unit = {},
+    onInputBloodGlucose: () -> Unit = {},
+    onInputCholesterol: () -> Unit = {},
+    onInputBodyComposition: () -> Unit = {}
 ) {
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now().dayOfMonth) }
     var calendarExpanded by remember { mutableStateOf(true) }
     var foodConsumptionExpanded by remember { mutableStateOf(true) }
 
-    val reminders = listOf(
+    // Sample reminders for different dates
+    val allReminders = listOf(
         Reminder(1, "1 June 2026", "12:00 PM", "Lunch", Color(0xFFFF6B35)),
         Reminder(2, "1 June 2026", "12:30 PM", "Amoxiciline", Color(0xFFFF8C42)),
-        Reminder(3, "1 June 2026", "12:30 PM", "Paracetamol", Color(0xFFFF8C42))
+        Reminder(3, "1 June 2026", "12:30 PM", "Paracetamol", Color(0xFFFF8C42)),
+        Reminder(4, "5 June 2026", "08:00 AM", "Morning Exercise", Color(0xFF4CAF50)),
+        Reminder(5, "5 June 2026", "02:00 PM", "Doctor Appointment", Color(0xFF2196F3)),
+        Reminder(6, "10 June 2026", "07:00 PM", "Dinner", Color(0xFFFF6B35)),
+        Reminder(7, "10 June 2026", "09:00 PM", "Evening Medication", Color(0xFFFF8C42)),
+        Reminder(8, "15 June 2026", "06:00 AM", "Morning Walk", Color(0xFF4CAF50)),
+        Reminder(9, "20 June 2026", "01:00 PM", "Lunch Meeting", Color(0xFFFF6B35)),
+        Reminder(10, "25 June 2026", "11:00 AM", "Health Checkup", Color(0xFF2196F3))
     )
+
+    // Filter reminders based on selected date
+    val filteredReminders = allReminders.filter { reminder ->
+        reminder.date.contains("$selectedDate June")
+    }
 
     val foodItems = listOf(
         FoodItem("One Bowl of salad and salmon", 285),
@@ -113,7 +136,10 @@ fun HomeScreen(
             )
         },
         bottomBar = {
-            BottomNavigationBar()
+            BottomNavigationBar(
+                currentRoute = "home",
+                onNavigate = onBottomNavClick
+            )
         },
         containerColor = Color(0xFFF5F5F5)
     ) { paddingValues ->
@@ -144,7 +170,7 @@ fun HomeScreen(
                                 imageVector = Icons.Default.DateRange,
                                 contentDescription = "Calendar",
                                 tint = Color(0xFF0A84FF),
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(32.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
@@ -181,11 +207,128 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Reminders
-                        reminders.forEach { reminder ->
-                            ReminderItem(reminder = reminder, onClick = { onReminderClick(reminder) })
-                            Spacer(modifier = Modifier.height(8.dp))
+                        // Reminders for selected date
+                        if (filteredReminders.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No reminders for $selectedDate ${currentMonth.month.name}",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        } else {
+                            filteredReminders.forEach { reminder ->
+                                ReminderItem(reminder = reminder, onClick = { onReminderClick(reminder) })
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Health Metrics Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = "Health Metrics",
+                                tint = Color(0xFF0A84FF),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "Health Metrics",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Text(
+                                    text = "Your health indicators",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Health Metrics Grid - NOW USING PASSED PARAMETERS! ✅
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Blood Pressure - FIXED: Now uses bloodPressureValue parameter
+                        HealthMetricCard(
+                            icon = Icons.Default.Favorite,
+                            iconColor = Color(0xFFFF6B6B),
+                            title = "Blood Pressure",
+                            value = bloodPressureValue, // ✅ FIXED: Was hardcoded "120/80"
+                            unit = "mmHg",
+                            onInputClick = onInputBloodPressure,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Blood Glucose - FIXED: Now uses bloodGlucoseValue parameter
+                        HealthMetricCard(
+                            icon = Icons.Default.Star,
+                            iconColor = Color(0xFFFFA500),
+                            title = "Blood Glucose",
+                            value = bloodGlucoseValue, // ✅ FIXED: Was hardcoded "95"
+                            unit = "mg/dL",
+                            onInputClick = onInputBloodGlucose,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Cholesterol - FIXED: Now uses cholesterolValue parameter
+                        HealthMetricCard(
+                            icon = Icons.Default.Science,
+                            iconColor = Color(0xFF4CAF50),
+                            title = "Cholesterol",
+                            value = cholesterolValue, // ✅ FIXED: Was hardcoded "180"
+                            unit = "mg/dL",
+                            onInputClick = onInputCholesterol,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Body Composition - FIXED: Now uses bodyCompositionValue parameter
+                        HealthMetricCard(
+                            icon = Icons.Default.FitnessCenter,
+                            iconColor = Color(0xFF2196F3),
+                            title = "Body Composition",
+                            value = bodyCompositionValue, // ✅ FIXED: Was hardcoded "22.5"
+                            unit = "% Fat",
+                            onInputClick = onInputBodyComposition,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -212,7 +355,7 @@ fun HomeScreen(
                                 imageVector = Icons.Default.ShoppingCart,
                                 contentDescription = "Food",
                                 tint = Color(0xFF0A84FF),
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(32.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
@@ -346,7 +489,8 @@ fun CalendarView(
                                     .background(
                                         if (day == selectedDate) Color(0xFF0A84FF)
                                         else Color.Transparent
-                                    ),
+                                    )
+                                    .clickable { onDateSelected(day) },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -437,14 +581,114 @@ fun FoodConsumptionItem(item: FoodItem) {
 }
 
 @Composable
-fun BottomNavigationBar() {
+fun HealthMetricCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconColor: Color,
+    title: String,
+    value: String,
+    unit: String,
+    onInputClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(150.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Icon
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(iconColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Value and Title
+            Column {
+                Row(
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text(
+                        text = value,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.width(1.dp))
+                    Text(
+                        text = unit,
+                        fontSize = 10.sp,
+                        color = Color.Gray,
+                    )
+                }
+                Spacer(modifier = Modifier.height(0.5.dp))
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    maxLines = 1
+                )
+            }
+
+            // Input Button
+            Button(
+                onClick = onInputClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = iconColor
+                ),
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add",
+                    modifier = Modifier.size(14.dp),
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Input",
+                    fontSize = 11.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BottomNavigationBar(
+    currentRoute: String = "home",
+    onNavigate: (String) -> Unit = {}
+) {
     NavigationBar(
         containerColor = Color.White,
         tonalElevation = 8.dp
     ) {
         NavigationBarItem(
-            selected = true,
-            onClick = { },
+            selected = currentRoute == "home",
+            onClick = { onNavigate("home") },
             icon = { Icon(Icons.Default.Home, "Home") },
             label = { Text("Home", fontSize = 12.sp) },
             colors = NavigationBarItemDefaults.colors(
@@ -454,22 +698,37 @@ fun BottomNavigationBar() {
             )
         )
         NavigationBarItem(
-            selected = false,
-            onClick = { },
+            selected = currentRoute == "reminder",
+            onClick = { onNavigate("reminder") },
             icon = { Icon(Icons.Default.DateRange, "Reminder") },
-            label = { Text("Reminder", fontSize = 12.sp) }
+            label = { Text("Reminder", fontSize = 12.sp) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF0A84FF),
+                selectedTextColor = Color(0xFF0A84FF),
+                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
+            )
         )
         NavigationBarItem(
-            selected = false,
-            onClick = { },
-            icon = { Icon(Icons.Default.Search, "Scan") },
-            label = { Text("Scan", fontSize = 12.sp) }
+            selected = currentRoute == "chat",
+            onClick = { onNavigate("chat") },
+            icon = { Icon(Icons.Default.Chat, "Chat") },
+            label = { Text("Chat", fontSize = 12.sp) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF0A84FF),
+                selectedTextColor = Color(0xFF0A84FF),
+                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
+            )
         )
         NavigationBarItem(
-            selected = false,
-            onClick = { },
+            selected = currentRoute == "account",
+            onClick = { onNavigate("account") },
             icon = { Icon(Icons.Default.Person, "Account") },
-            label = { Text("Account", fontSize = 12.sp) }
+            label = { Text("Account", fontSize = 12.sp) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF0A84FF),
+                selectedTextColor = Color(0xFF0A84FF),
+                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
+            )
         )
     }
 }

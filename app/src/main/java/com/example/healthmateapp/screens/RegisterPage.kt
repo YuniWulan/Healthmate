@@ -5,8 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,9 +21,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
-    onRegisterClick: (username: String, email: String, password: String) -> Unit = { _, _, _ -> },
+    onRegisterClick: (username: String, email: String, password: String, role: String) -> Unit = { _, _, _, _ -> },
     onLoginClick: () -> Unit = {},
     onTermsClick: () -> Unit = {},
     onPrivacyClick: () -> Unit = {},
@@ -35,6 +35,11 @@ fun RegisterScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var termsAccepted by remember { mutableStateOf(false) }
+
+    // Role selection
+    var selectedRole by remember { mutableStateOf("patient") }
+    var roleDropdownExpanded by remember { mutableStateOf(false) }
+    val roles = listOf("patient" to "Patient", "assistant" to "Assistant")
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -174,6 +179,75 @@ fun RegisterScreen(
                 enabled = !isLoading
             )
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Role Selection Dropdown
+            Text(
+                text = "Role*",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.Black
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ExposedDropdownMenuBox(
+                expanded = roleDropdownExpanded,
+                onExpandedChange = { if (!isLoading) roleDropdownExpanded = !roleDropdownExpanded }
+            ) {
+                OutlinedTextField(
+                    value = roles.find { it.first == selectedRole }?.second ?: "Patient",
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = if (roleDropdownExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            contentDescription = "Dropdown",
+                            tint = Color.Gray
+                        )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color.LightGray,
+                        focusedBorderColor = Color(0xFF0A84FF),
+                        unfocusedContainerColor = Color(0xFFF5F5F5),
+                        focusedContainerColor = Color(0xFFF5F5F5)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !isLoading
+                )
+
+                ExposedDropdownMenu(
+                    expanded = roleDropdownExpanded,
+                    onDismissRequest = { roleDropdownExpanded = false }
+                ) {
+                    roles.forEach { (value, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (value == "patient") Icons.Filled.Person else Icons.Filled.MedicalServices,
+                                        contentDescription = null,
+                                        tint = Color(0xFF0A84FF),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(label)
+                                }
+                            },
+                            onClick = {
+                                selectedRole = value
+                                roleDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Terms and Conditions Checkbox
@@ -249,7 +323,7 @@ fun RegisterScreen(
             Button(
                 onClick = {
                     if (termsAccepted) {
-                        onRegisterClick(username, email, password)
+                        onRegisterClick(username, email, password, selectedRole)
                     }
                 },
                 modifier = Modifier
