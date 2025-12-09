@@ -171,7 +171,7 @@ fun ForgetPasswordScreen(
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun ForgetPasswordPreview() {
     val navController = rememberNavController()
