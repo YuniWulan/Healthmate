@@ -1,10 +1,12 @@
 package com.example.healthmateapp.screens
 
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -18,13 +20,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
 fun RegisterScreen(
-    onRegisterClick: (username: String, email: String, password: String) -> Unit = { _, _, _ -> },
+    onRegisterClick: (username: String, email: String, password: String, role: String) -> Unit = { _,_,_,_ -> },
     onLoginClick: () -> Unit = {},
     onTermsClick: () -> Unit = {},
     onPrivacyClick: () -> Unit = {},
@@ -35,6 +36,10 @@ fun RegisterScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var termsAccepted by remember { mutableStateOf(false) }
+
+    // ROLE
+    var selectedRole by remember { mutableStateOf("patient") }
+    var dropdownExpanded by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -48,9 +53,10 @@ fun RegisterScreen(
                 .padding(top = 60.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            // Header
+
+            // ===== HEADER =====
             Text(
-                text = "Daftar Sekarang!",
+                text = "Register Now!",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
@@ -59,7 +65,7 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Satu aplikasi untuk semua kebutuhan sehatmu.\nJadikan gaya hidup lebih sehat dan konsisten.",
+                text = "One app for all your health needs.\nMake your lifestyle healthier and more consistent.",
                 fontSize = 14.sp,
                 color = Color.Gray,
                 lineHeight = 20.sp
@@ -67,26 +73,16 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Username Field
-            Text(
-                text = "Nama Pengguna*",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
-            )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // ===== USERNAME =====
+            Text("Username*", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
 
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "Masukkan nama pengguna",
-                        color = Color.Gray
-                    )
-                },
+                placeholder = { Text("Enter your username", color = Color.Gray) },
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = Color.LightGray,
                     focusedBorderColor = Color(0xFF0A84FF),
@@ -98,28 +94,18 @@ fun RegisterScreen(
                 enabled = !isLoading
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // Email Field
-            Text(
-                text = "Email*",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
-            )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // ===== EMAIL =====
+            Text("Email*", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
 
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "Masukkan email",
-                        color = Color.Gray
-                    )
-                },
+                placeholder = { Text("Enter your email", color = Color.Gray) },
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = Color.LightGray,
                     focusedBorderColor = Color(0xFF0A84FF),
@@ -131,34 +117,24 @@ fun RegisterScreen(
                 enabled = !isLoading
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // Password Field
-            Text(
-                text = "Kata Sandi*",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
-            )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // ===== PASSWORD =====
+            Text("Password*", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
 
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "Masukkan kata sandi",
-                        color = Color.Gray
-                    )
-                },
+                placeholder = { Text("Enter your password", color = Color.Gray) },
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            contentDescription = null,
                             tint = Color.Gray
                         )
                     }
@@ -174,133 +150,131 @@ fun RegisterScreen(
                 enabled = !isLoading
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // Terms and Conditions Checkbox
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
-            ) {
+
+            // ===== ROLE DROPDOWN =====
+            Text("Register As*", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
+
+            Box {
+                OutlinedTextField(
+                    value = if (selectedRole == "patient") "Patient" else "Assistant",
+                    onValueChange = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false,
+                    trailingIcon = {
+                        IconButton(onClick = { dropdownExpanded = true }) {
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFF0A84FF))
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledBorderColor = Color.LightGray,
+                        disabledContainerColor = Color(0xFFF5F5F5),
+                        disabledTextColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                DropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Patient") },
+                        onClick = {
+                            selectedRole = "patient"
+                            dropdownExpanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Assistant") },
+                        onClick = {
+                            selectedRole = "assistant"
+                            dropdownExpanded = false
+                        }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+
+            // ===== TERMS =====
+            Row(verticalAlignment = Alignment.Top) {
                 Checkbox(
                     checked = termsAccepted,
                     onCheckedChange = { termsAccepted = it },
                     colors = CheckboxDefaults.colors(
                         checkedColor = Color(0xFF0A84FF),
                         uncheckedColor = Color.LightGray
-                    ),
-                    enabled = !isLoading
+                    )
                 )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(Modifier.width(8.dp))
 
                 val annotatedText = buildAnnotatedString {
-                    append("Dengan mendaftar, Anda menyetujui ")
+                    append("By registering, you agree to the ")
 
                     pushStringAnnotation(tag = "TERMS", annotation = "terms")
-                    withStyle(style = SpanStyle(color = Color(0xFF0A84FF))) {
-                        append("[Syarat Layanan]")
-                    }
+                    withStyle(style = SpanStyle(color = Color(0xFF0A84FF))) { append("[Terms of Service]") }
                     pop()
 
-                    append(" dan ")
+                    append(" and ")
 
                     pushStringAnnotation(tag = "PRIVACY", annotation = "privacy")
-                    withStyle(style = SpanStyle(color = Color(0xFF0A84FF))) {
-                        append("[Kebijakan Privasi]")
-                    }
+                    withStyle(style = SpanStyle(color = Color(0xFF0A84FF))) { append("[Privacy Policy]") }
                     pop()
 
-                    append(" kami.")
+                    append(".")
                 }
 
                 androidx.compose.foundation.text.ClickableText(
                     text = annotatedText,
-                    style = LocalTextStyle.current.copy(
-                        fontSize = 14.sp,
-                        color = Color.DarkGray,
-                        lineHeight = 20.sp
-                    ),
-                    modifier = Modifier.padding(top = 12.dp),
                     onClick = { offset ->
-                        if (!isLoading) {
-                            annotatedText.getStringAnnotations(
-                                tag = "TERMS",
-                                start = offset,
-                                end = offset
-                            ).firstOrNull()?.let {
-                                onTermsClick()
-                            }
-
-                            annotatedText.getStringAnnotations(
-                                tag = "PRIVACY",
-                                start = offset,
-                                end = offset
-                            ).firstOrNull()?.let {
-                                onPrivacyClick()
-                            }
-                        }
-                    }
+                        annotatedText.getStringAnnotations("TERMS", offset, offset).firstOrNull()?.let { onTermsClick() }
+                        annotatedText.getStringAnnotations("PRIVACY", offset, offset).firstOrNull()?.let { onPrivacyClick() }
+                    },
+                    modifier = Modifier.padding(top = 12.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // Register Button
+
+            // ===== REGISTER BUTTON =====
             Button(
                 onClick = {
                     if (termsAccepted) {
-                        onRegisterClick(username, email, password)
+                        onRegisterClick(username, email, password, selectedRole)
+
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF0A84FF),
-                    disabledContainerColor = Color(0xFF0A84FF).copy(alpha = 0.5f)
+                    disabledContainerColor = Color(0xFF0A84FF).copy(alpha = 0.4f)
                 ),
                 shape = RoundedCornerShape(12.dp),
                 enabled = termsAccepted && !isLoading
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color.White
-                    )
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                 } else {
-                    Text(
-                        text = "Daftar",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
+                    Text("Register", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // Login Link
+            // ===== LOGIN LINK =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = "Sudah punya akun? ",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-                TextButton(
-                    onClick = onLoginClick,
-                    contentPadding = PaddingValues(0.dp),
-                    enabled = !isLoading
-                ) {
-                    Text(
-                        text = "Masuk",
-                        color = Color(0xFF0A84FF),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Text("Already have an account? ", color = Color.Gray)
+                TextButton(onClick = onLoginClick, contentPadding = PaddingValues(0.dp)) {
+                    Text("Login", color = Color(0xFF0A84FF), fontWeight = FontWeight.SemiBold)
                 }
             }
         }
