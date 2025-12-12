@@ -1,9 +1,18 @@
 package com.example.healthmateapp
 
+import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -14,36 +23,145 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.healthmateapp.screens.LoginScreen
-import com.example.healthmateapp.screens.RegisterScreen
-import com.example.healthmateapp.screens.HomeScreen
-import com.example.healthmateapp.screens.ProfileScreen
-import com.example.healthmateapp.screens.BloodPressureInputScreen
-import com.example.healthmateapp.screens.BloodGlucoseInputScreen
-import com.example.healthmateapp.screens.CholesterolInputScreen
+import com.example.healthmateapp.screens.*
 import com.example.healthmateapp.viewmodel.AuthViewModel
 import com.example.healthmateapp.viewmodel.AuthState
 import com.example.healthmateapp.viewmodel.HealthMetricsViewModel
-import com.example.healthmateapp.viewmodel.HealthMetricsState
+import com.example.healthmateapp.viewmodel.MedicationViewModel
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
+
+    private var showAlarmPermissionDialog by mutableStateOf(false)
+
+    // Permission launcher for notifications (Android 13+)
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show()
+            // After notification permission, check alarm permission
+            checkAndRequestAlarmPermission()
+        } else {
+            Toast.makeText(
+                this,
+                "Notification permission denied. You won't receive medication reminders.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Request necessary permissions
+        requestPermissions()
+
         setContent {
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    // Show alarm permission dialog if needed
+                    if (showAlarmPermissionDialog) {
+                        AlarmPermissionDialog(
+                            onDismiss = {
+                                showAlarmPermissionDialog = false
+                            },
+                            onGrantClick = {
+                                showAlarmPermissionDialog = false
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                            data = Uri.parse("package:$packageName")
+                                        }
+                                        startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(
+                                            this,
+                                            "Please enable exact alarm permission in app settings",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        )
+                    }
+
                     AppNavigation()
                 }
             }
         }
     }
+
+    private fun requestPermissions() {
+        // Check and request notification permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                // Notification permission already granted, check alarm permission
+                checkAndRequestAlarmPermission()
+            }
+        } else {
+            // For Android 12 and below, just check alarm permission
+            checkAndRequestAlarmPermission()
+        }
+    }
+
+    private fun checkAndRequestAlarmPermission() {
+        // Check exact alarm permission for Android 12+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                // Show dialog to explain why we need this permission
+                showAlarmPermissionDialog = true
+            }
+        }
+    }
+}
+
+@Composable
+fun AlarmPermissionDialog(
+    onDismiss: () -> Unit,
+    onGrantClick: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { },
+        title = {
+            Text("Exact Alarm Permission Required")
+        },
+        text = {
+            Text(
+                "HealthMate needs permission to schedule exact alarms to remind you about your medications at the right time. " +
+                        "Please grant this permission on the next screen."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onGrantClick) {
+                Text("Grant Permission")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    onDismiss()
+                }
+            ) {
+                Text("Later")
+            }
+        }
+    )
 }
 
 sealed class Screen(val route: String) {
@@ -51,6 +169,8 @@ sealed class Screen(val route: String) {
     object Register : Screen("register")
     object Home : Screen("home")
     object Profile : Screen("profile")
+    object Reminder : Screen("reminder")
+    object AddMedication : Screen("add_medication")
     object EditProfile : Screen("edit_profile")
     object ChangePassword : Screen("change_password")
     object HealthReport : Screen("health_report")
@@ -68,11 +188,12 @@ fun AppNavigation() {
     val context = LocalContext.current
     val authViewModel: AuthViewModel = viewModel()
     val healthMetricsViewModel: HealthMetricsViewModel = viewModel()
+    val medicationViewModel: MedicationViewModel = viewModel()
 
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     val healthMetrics by healthMetricsViewModel.currentMetrics.collectAsState()
-    val healthMetricsState by healthMetricsViewModel.healthMetricsState.collectAsState()
+    val medications by medicationViewModel.medications.collectAsState()
 
     // Check authentication state and navigate accordingly
     LaunchedEffect(authState) {
@@ -155,9 +276,24 @@ fun AppNavigation() {
 
         // ============ HOME SCREEN ============
         composable(Screen.Home.route) {
-
+            // Reload health metrics when entering home screen
             LaunchedEffect(Unit) {
                 healthMetricsViewModel.loadHealthMetrics()
+            }
+
+            // Get today's medications for reminders
+            val today = LocalDate.now()
+            val todayMedications = medicationViewModel.getMedicationsForDate(today)
+
+            // Convert to Reminder format for HomeScreen
+            val reminders = todayMedications.map { med ->
+                Reminder(
+                    id = med.id.hashCode(),
+                    date = today.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy")),
+                    time = med.time,
+                    title = med.name,
+                    iconColor = Color(0xFFFF8C42)
+                )
             }
 
             HomeScreen(
@@ -168,6 +304,7 @@ fun AppNavigation() {
                 bloodGlucoseValue = healthMetrics.bloodGlucose?.glucose ?: "95",
                 cholesterolValue = healthMetrics.cholesterol?.total ?: "180",
                 bodyCompositionValue = healthMetrics.bodyComposition?.bodyFat ?: "22.5",
+                reminders = reminders,
                 onNotificationClick = {
                     Toast.makeText(context, "Notifications", Toast.LENGTH_SHORT).show()
                 },
@@ -195,7 +332,7 @@ fun AppNavigation() {
                     when (route) {
                         "home" -> { /* Already on home */ }
                         "reminder" -> {
-                            Toast.makeText(context, "Reminder feature coming soon", Toast.LENGTH_SHORT).show()
+                            navController.navigate(Screen.Reminder.route)
                         }
                         "chat" -> {
                             Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()
@@ -216,6 +353,49 @@ fun AppNavigation() {
                 },
                 onInputBodyComposition = {
                     Toast.makeText(context, "Input Body Composition", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        // ============ MEDICATION SCHEDULE / REMINDER SCREEN ============
+        composable(Screen.Reminder.route) {
+            MedicationScheduleScreen(
+                navController = navController,
+                medications = medications,
+                onToggleTaken = { date, medicationId, taken ->
+                    medicationViewModel.toggleMedicationTaken(date, medicationId, taken)
+                },
+                onAddMedicationClick = {
+                    navController.navigate(Screen.AddMedication.route)
+                }
+            )
+        }
+
+        // ============ ADD MEDICATION SCREEN ============
+        composable(Screen.AddMedication.route) {
+            AddMedicationScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onSaveClick = { name, dosage, frequency, startDate, endDate, beforeMeal, time, customInstruction ->
+                    val note = if (beforeMeal) "Before Eating" else "After Eating"
+
+                    medicationViewModel.addMedication(
+                        name = name,
+                        dosage = dosage,
+                        note = note,
+                        time = time,
+                        startDate = startDate,
+                        endDate = endDate
+                    )
+
+                    Toast.makeText(
+                        context,
+                        "Medication added: $name - Alarm set for $time",
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                    navController.popBackStack()
                 }
             )
         }
@@ -252,7 +432,7 @@ fun AppNavigation() {
                             }
                         }
                         "reminder" -> {
-                            Toast.makeText(context, "Reminder feature coming soon", Toast.LENGTH_SHORT).show()
+                            navController.navigate(Screen.Reminder.route)
                         }
                         "chat" -> {
                             Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()

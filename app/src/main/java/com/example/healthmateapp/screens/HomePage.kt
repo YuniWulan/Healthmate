@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.healthmateapp.components.BottomNavigationBar
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -43,6 +44,7 @@ fun HomeScreen(
     bloodGlucoseValue: String = "95",
     cholesterolValue: String = "180",
     bodyCompositionValue: String = "22.5",
+    reminders: List<Reminder> = emptyList(),
     onNotificationClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onReminderClick: (Reminder) -> Unit = {},
@@ -58,25 +60,6 @@ fun HomeScreen(
     var selectedDate by remember { mutableStateOf(LocalDate.now().dayOfMonth) }
     var calendarExpanded by remember { mutableStateOf(true) }
     var foodConsumptionExpanded by remember { mutableStateOf(true) }
-
-    // Sample reminders for different dates
-    val allReminders = listOf(
-        Reminder(1, "1 June 2026", "12:00 PM", "Lunch", Color(0xFFFF6B35)),
-        Reminder(2, "1 June 2026", "12:30 PM", "Amoxiciline", Color(0xFFFF8C42)),
-        Reminder(3, "1 June 2026", "12:30 PM", "Paracetamol", Color(0xFFFF8C42)),
-        Reminder(4, "5 June 2026", "08:00 AM", "Morning Exercise", Color(0xFF4CAF50)),
-        Reminder(5, "5 June 2026", "02:00 PM", "Doctor Appointment", Color(0xFF2196F3)),
-        Reminder(6, "10 June 2026", "07:00 PM", "Dinner", Color(0xFFFF6B35)),
-        Reminder(7, "10 June 2026", "09:00 PM", "Evening Medication", Color(0xFFFF8C42)),
-        Reminder(8, "15 June 2026", "06:00 AM", "Morning Walk", Color(0xFF4CAF50)),
-        Reminder(9, "20 June 2026", "01:00 PM", "Lunch Meeting", Color(0xFFFF6B35)),
-        Reminder(10, "25 June 2026", "11:00 AM", "Health Checkup", Color(0xFF2196F3))
-    )
-
-    // Filter reminders based on selected date
-    val filteredReminders = allReminders.filter { reminder ->
-        reminder.date.contains("$selectedDate June")
-    }
 
     val foodItems = listOf(
         FoodItem("One Bowl of salad and salmon", 285),
@@ -121,13 +104,15 @@ fun HomeScreen(
                                 tint = Color.Black
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .offset(x = 4.dp, y = 8.dp)
-                                .clip(CircleShape)
-                                .background(Color.Red)
-                        )
+                        if (reminders.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .offset(x = 4.dp, y = 8.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Red)
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -175,13 +160,13 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Calendar",
+                                    text = "Today's Medications",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.Black
                                 )
                                 Text(
-                                    text = "Your daily reminder",
+                                    text = "${reminders.size} medication${if (reminders.size != 1) "s" else ""} scheduled",
                                     fontSize = 12.sp,
                                     color = Color.Gray
                                 )
@@ -198,34 +183,50 @@ fun HomeScreen(
 
                     if (calendarExpanded) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        CalendarView(
-                            currentMonth = currentMonth,
-                            selectedDate = selectedDate,
-                            onDateSelected = { selectedDate = it },
-                            onMonthChanged = { currentMonth = it }
-                        )
 
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Reminders for selected date
-                        if (filteredReminders.isEmpty()) {
+                        // Medication Reminders for today
+                        if (reminders.isEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 16.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "No reminders for $selectedDate ${currentMonth.month.name}",
-                                    fontSize = 14.sp,
-                                    color = Color.Gray
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "No medications scheduled for today",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                         } else {
-                            filteredReminders.forEach { reminder ->
+                            reminders.forEach { reminder ->
                                 ReminderItem(reminder = reminder, onClick = { onReminderClick(reminder) })
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // View All Medications Button
+                        OutlinedButton(
+                            onClick = { onBottomNavClick("reminder") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.CalendarToday, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("View All Medications")
                         }
                     }
                 }
@@ -274,28 +275,26 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Health Metrics Grid - NOW USING PASSED PARAMETERS! ✅
+                    // Health Metrics Grid
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Blood Pressure - FIXED: Now uses bloodPressureValue parameter
                         HealthMetricCard(
                             icon = Icons.Default.Favorite,
                             iconColor = Color(0xFFFF6B6B),
                             title = "Blood Pressure",
-                            value = bloodPressureValue, // ✅ FIXED: Was hardcoded "120/80"
+                            value = bloodPressureValue,
                             unit = "mmHg",
                             onInputClick = onInputBloodPressure,
                             modifier = Modifier.weight(1f)
                         )
 
-                        // Blood Glucose - FIXED: Now uses bloodGlucoseValue parameter
                         HealthMetricCard(
                             icon = Icons.Default.Star,
                             iconColor = Color(0xFFFFA500),
                             title = "Blood Glucose",
-                            value = bloodGlucoseValue, // ✅ FIXED: Was hardcoded "95"
+                            value = bloodGlucoseValue,
                             unit = "mg/dL",
                             onInputClick = onInputBloodGlucose,
                             modifier = Modifier.weight(1f)
@@ -308,23 +307,21 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Cholesterol - FIXED: Now uses cholesterolValue parameter
                         HealthMetricCard(
                             icon = Icons.Default.Science,
                             iconColor = Color(0xFF4CAF50),
                             title = "Cholesterol",
-                            value = cholesterolValue, // ✅ FIXED: Was hardcoded "180"
+                            value = cholesterolValue,
                             unit = "mg/dL",
                             onInputClick = onInputCholesterol,
                             modifier = Modifier.weight(1f)
                         )
 
-                        // Body Composition - FIXED: Now uses bodyCompositionValue parameter
                         HealthMetricCard(
                             icon = Icons.Default.FitnessCenter,
                             iconColor = Color(0xFF2196F3),
                             title = "Body Composition",
-                            value = bodyCompositionValue, // ✅ FIXED: Was hardcoded "22.5"
+                            value = bodyCompositionValue,
                             unit = "% Fat",
                             onInputClick = onInputBodyComposition,
                             modifier = Modifier.weight(1f)
@@ -419,103 +416,15 @@ fun HomeScreen(
     }
 }
 
-@Composable
-fun CalendarView(
-    currentMonth: YearMonth,
-    selectedDate: Int,
-    onDateSelected: (Int) -> Unit,
-    onMonthChanged: (YearMonth) -> Unit
-) {
-    Column {
-        // Month Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { onMonthChanged(currentMonth.minusMonths(1)) }) {
-                Icon(Icons.Default.KeyboardArrowLeft, "Previous Month")
-            }
-            Text(
-                text = currentMonth.month.name.lowercase().replaceFirstChar { it.uppercase() },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            IconButton(onClick = { onMonthChanged(currentMonth.plusMonths(1)) }) {
-                Icon(Icons.Default.KeyboardArrowRight, "Next Month")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Day Labels
-        Row(modifier = Modifier.fillMaxWidth()) {
-            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
-                Text(
-                    text = day,
-                    modifier = Modifier.weight(1f),
-                    fontSize = 12.sp,
-                    color = if (day == "Sun") Color.Red else Color.Gray,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Calendar Grid
-        val daysInMonth = currentMonth.lengthOfMonth()
-        val firstDayOfMonth = currentMonth.atDay(1).dayOfWeek.value % 7
-
-        var dayCounter = 1
-        for (week in 0..5) {
-            if (dayCounter > daysInMonth) break
-
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (dayOfWeek in 0..6) {
-                    val showDay = week > 0 || dayOfWeek >= firstDayOfMonth
-                    val day = if (showDay && dayCounter <= daysInMonth) dayCounter++ else 0
-
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (day > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (day == selectedDate) Color(0xFF0A84FF)
-                                        else Color.Transparent
-                                    )
-                                    .clickable { onDateSelected(day) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = day.toString(),
-                                    fontSize = 14.sp,
-                                    color = when {
-                                        day == selectedDate -> Color.White
-                                        dayOfWeek == 0 -> Color.Red
-                                        else -> Color.Black
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-    }
-}
-
+// Helper Composables
 @Composable
 fun ReminderItem(reminder: Reminder, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFF8F9FA))
+            .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -528,7 +437,7 @@ fun ReminderItem(reminder: Reminder, onClick: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Favorite,
+                    imageVector = Icons.Default.Medication,
                     contentDescription = reminder.title,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
@@ -537,13 +446,13 @@ fun ReminderItem(reminder: Reminder, onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "${reminder.date}  ·  ${reminder.time}",
+                    text = reminder.title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.Black
                 )
                 Text(
-                    text = reminder.title,
+                    text = reminder.time,
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
@@ -604,7 +513,6 @@ fun HealthMetricCard(
                 .padding(12.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Icon
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -620,7 +528,6 @@ fun HealthMetricCard(
                 )
             }
 
-            // Value and Title
             Column {
                 Row(
                     verticalAlignment = Alignment.Bottom
@@ -647,7 +554,6 @@ fun HealthMetricCard(
                 )
             }
 
-            // Input Button
             Button(
                 onClick = onInputClick,
                 modifier = Modifier
@@ -674,62 +580,6 @@ fun HealthMetricCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun BottomNavigationBar(
-    currentRoute: String = "home",
-    onNavigate: (String) -> Unit = {}
-) {
-    NavigationBar(
-        containerColor = Color.White,
-        tonalElevation = 8.dp
-    ) {
-        NavigationBarItem(
-            selected = currentRoute == "home",
-            onClick = { onNavigate("home") },
-            icon = { Icon(Icons.Default.Home, "Home") },
-            label = { Text("Home", fontSize = 12.sp) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF0A84FF),
-                selectedTextColor = Color(0xFF0A84FF),
-                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
-            )
-        )
-        NavigationBarItem(
-            selected = currentRoute == "reminder",
-            onClick = { onNavigate("reminder") },
-            icon = { Icon(Icons.Default.DateRange, "Reminder") },
-            label = { Text("Reminder", fontSize = 12.sp) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF0A84FF),
-                selectedTextColor = Color(0xFF0A84FF),
-                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
-            )
-        )
-        NavigationBarItem(
-            selected = currentRoute == "chat",
-            onClick = { onNavigate("chat") },
-            icon = { Icon(Icons.Default.Chat, "Chat") },
-            label = { Text("Chat", fontSize = 12.sp) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF0A84FF),
-                selectedTextColor = Color(0xFF0A84FF),
-                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
-            )
-        )
-        NavigationBarItem(
-            selected = currentRoute == "account",
-            onClick = { onNavigate("account") },
-            icon = { Icon(Icons.Default.Person, "Account") },
-            label = { Text("Account", fontSize = 12.sp) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF0A84FF),
-                selectedTextColor = Color(0xFF0A84FF),
-                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
-            )
-        )
     }
 }
 
