@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -123,8 +124,14 @@ fun BottomNavigationBar(
             selected = currentRoute == "reminder",
             onClick = { onNavigate("reminder") },
             icon = { Icon(Icons.Default.DateRange, "Reminder") },
-            label = { Text("Reminder", fontSize = 12.sp) }
-        )
+            label = { Text("Reminder", fontSize = 12.sp)},
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF0A84FF),
+                selectedTextColor = Color(0xFF0A84FF),
+                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
+                )
+            )
+
         NavigationBarItem(
             selected = currentRoute == "chat",
             onClick = { onNavigate("chat") },
@@ -159,7 +166,7 @@ fun TimelineItem(
             val linePx = lineWidth.toPx()
             val gapPx = lineTopGap.toPx()
 
-            // Garis tepat di tengah dot
+
             val lineLeft = (dotPx / 2f) - (linePx / 2f)
 
             val startY = dotPx + gapPx
@@ -426,7 +433,7 @@ fun MedicationScheduleScreen(
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun MedicationScheduleScreenPreview() {
     MedicationScheduleScreen()
