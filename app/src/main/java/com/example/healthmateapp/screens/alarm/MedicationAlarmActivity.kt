@@ -1,77 +1,74 @@
 package com.example.healthmateapp.screens.alarm
 
+import android.content.Context
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MedicalServices
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.healthmateapp.alarm.MedicationAlarmReceiver
 import com.example.healthmateapp.ui.theme.BlueMain
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MedicationAlarmActivity : ComponentActivity() {
 
     private var mediaPlayer: MediaPlayer? = null
+    private var vibrator: Vibrator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Show the alarm even when screen is locked
+        // Get medication details from intent
+        val medicationName = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_NAME) ?: "Medication"
+        val medicationDosage = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_DOSAGE) ?: ""
+        val medicationNote = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_NOTE) ?: ""
+        val medicationId = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_ID) ?: ""
+
+        // Start alarm sound and vibration
+        startAlarmSound()
+        startVibration()
+
+        // Turn screen on and show over lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         } else {
             @Suppress("DEPRECATION")
             window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
 
-        val medicationName = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_NAME) ?: "Medication"
-        val medicationDosage = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_DOSAGE) ?: ""
-        val medicationNote = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_NOTE) ?: ""
-        val medicationId = intent.getStringExtra(MedicationAlarmReceiver.EXTRA_MEDICATION_ID) ?: ""
-
-        // Play alarm sound
-        playAlarmSound()
-
         setContent {
             MaterialTheme {
-                MedicationAlarmScreen(
+                SimpleMedicationAlarmScreen(
                     medicationName = medicationName,
                     medicationDosage = medicationDosage,
-                    medicationNote = medicationNote,
                     onDismiss = {
-                        stopAlarmSound()
-                        finish()
-                    },
-                    onSnooze = {
-                        stopAlarmSound()
-                        // Schedule snooze alarm (5 minutes later)
-                        MedicationAlarmScheduler.scheduleSnooze(
-                            context = this,
-                            medicationId = medicationId,
-                            medicationName = medicationName,
-                            medicationDosage = medicationDosage,
-                            medicationNote = medicationNote
-                        )
+                        // Stop alarm and close
+                        stopAlarm()
                         finish()
                     }
                 )
@@ -79,11 +76,9 @@ class MedicationAlarmActivity : ComponentActivity() {
         }
     }
 
-    private fun playAlarmSound() {
+    private fun startAlarmSound() {
         try {
             val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(this@MedicationAlarmActivity, alarmUri)
                 isLooping = true
@@ -91,75 +86,113 @@ class MedicationAlarmActivity : ComponentActivity() {
                 start()
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("MedicationAlarmActivity", "Failed to start alarm sound", e)
         }
     }
 
-    private fun stopAlarmSound() {
-        mediaPlayer?.apply {
-            if (isPlaying) {
-                stop()
+    private fun startVibration() {
+        try {
+            vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             }
-            release()
+
+            val pattern = longArrayOf(0, 500, 200, 500, 200, 500)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, 0)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MedicationAlarmActivity", "Failed to start vibration", e)
         }
-        mediaPlayer = null
+    }
+
+    private fun stopAlarm() {
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+
+            vibrator?.cancel()
+            vibrator = null
+        } catch (e: Exception) {
+            android.util.Log.e("MedicationAlarmActivity", "Failed to stop alarm", e)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        stopAlarmSound()
+        stopAlarm()
     }
 }
 
 @Composable
-fun MedicationAlarmScreen(
+fun SimpleMedicationAlarmScreen(
     medicationName: String,
     medicationDosage: String,
-    medicationNote: String,
-    onDismiss: () -> Unit,
-    onSnooze: () -> Unit
+    onDismiss: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BlueMain),
-        contentAlignment = Alignment.Center
-    ) {
+    val currentTime = remember {
+        SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+    }
+
+    Scaffold(
+        containerColor = Color(0xFFF5F5F5)
+    ) { padding ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .padding(padding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            // Icon
-            Icon(
-                imageVector = Icons.Default.MedicalServices,
-                contentDescription = "Medication",
-                modifier = Modifier.size(120.dp),
-                tint = Color.White
-            )
+            // Alarm Icon Animation
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(BlueMain.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Alarm",
+                    modifier = Modifier.size(64.dp),
+                    tint = BlueMain
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
 
             // Title
             Text(
-                text = "Time to Take Your Medication!",
+                text = "Medication Reminder",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = Color.Black,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Medication Details Card
+            // Medication Info Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -170,77 +203,63 @@ fun MedicationAlarmScreen(
                         textAlign = TextAlign.Center
                     )
 
-                    if (medicationDosage.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = medicationDosage,
-                            fontSize = 18.sp,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    if (medicationNote.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = medicationDosage,
+                        fontSize = 18.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Divider()
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccessTime,
+                            contentDescription = null,
+                            tint = Color(0xFFFF9800),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = medicationNote,
+                            text = currentTime,
                             fontSize = 16.sp,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
+                            color = Color.Gray
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "Mark this as taken from your medication list",
+                fontSize = 14.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             // Dismiss Button
             Button(
                 onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
-                    contentColor = BlueMain
-                ),
-                shape = RoundedCornerShape(30.dp)
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BlueMain),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Dismiss",
-                    modifier = Modifier.size(24.dp)
-                )
+                Icon(Icons.Default.Close, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "I've Taken It",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Snooze Button
-            OutlinedButton(
-                onClick = onSnooze,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
-                ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    width = 2.dp,
-                    brush = androidx.compose.ui.graphics.SolidColor(Color.White)
-                ),
-                shape = RoundedCornerShape(30.dp)
-            ) {
-                Text(
-                    text = "Snooze (5 min)",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("Dismiss Alarm", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

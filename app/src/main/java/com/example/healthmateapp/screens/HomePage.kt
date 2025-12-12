@@ -1,6 +1,8 @@
 package com.example.healthmateapp.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,15 +22,24 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.healthmateapp.components.BottomNavigationBar
+import com.example.healthmateapp.ui.theme.BlueMain
 import java.time.LocalDate
 import java.time.YearMonth
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.text.style.TextAlign
 
+// NOTE: Reminder now includes optional dosage & note so UI can show them.
+// If other parts of your app depend on old Reminder, adapt accordingly.
 data class Reminder(
     val id: Int,
     val date: String,
     val time: String,
     val title: String,
-    val iconColor: Color
+    val iconColor: Color,
+    val dosage: String = "",
+    val note: String = ""
 )
 
 data class FoodItem(
@@ -54,7 +65,9 @@ fun HomeScreen(
     onInputBloodPressure: () -> Unit = {},
     onInputBloodGlucose: () -> Unit = {},
     onInputCholesterol: () -> Unit = {},
-    onInputBodyComposition: () -> Unit = {}
+    onInputBodyComposition: () -> Unit = {},
+    // NEW: callback to inform parent that reminder was confirmed / marked taken
+    onConfirmTaken: (Reminder) -> Unit = {}
 ) {
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now().dayOfMonth) }
@@ -65,6 +78,22 @@ fun HomeScreen(
         FoodItem("One Bowl of salad and salmon", 285),
         FoodItem("Oven Baked Chicken breast", 482)
     )
+
+    val context = LocalContext.current
+
+    val ctx = LocalContext.current
+
+    // Local state to track which reminders are taken (so UI shows green check)
+    val takenMap = remember { mutableStateMapOf<Int, Boolean>() }
+    LaunchedEffect(reminders) {
+        reminders.forEach { r ->
+            takenMap.putIfAbsent(r.id, false)
+        }
+    }
+
+    // For confirmation dialog
+    var toConfirmReminder by remember { mutableStateOf<Reminder?>(null) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -104,7 +133,8 @@ fun HomeScreen(
                                 tint = Color.Black
                             )
                         }
-                        if (reminders.isNotEmpty()) {
+                        if (reminders.any { !takenMap.getOrDefault(it.id, false) }) {
+                            // show red dot when there are pending reminders
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
@@ -135,16 +165,14 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Calendar Section
+            // Calendar Section (kept similar)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -184,7 +212,6 @@ fun HomeScreen(
                     if (calendarExpanded) {
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Medication Reminders for today
                         if (reminders.isEmpty()) {
                             Box(
                                 modifier = Modifier
@@ -192,9 +219,7 @@ fun HomeScreen(
                                     .padding(vertical = 16.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = null,
@@ -210,15 +235,24 @@ fun HomeScreen(
                                 }
                             }
                         } else {
+                            // Show medication cards (same style as MedicationScheduleScreen)
                             reminders.forEach { reminder ->
-                                ReminderItem(reminder = reminder, onClick = { onReminderClick(reminder) })
+                                MedicationRowCard(
+                                    reminder = reminder,
+                                    taken = takenMap.getOrDefault(reminder.id, false),
+                                    onClickCard = { onReminderClick(reminder) },
+                                    onCheckClick = {
+                                        // open confirmation dialog
+                                        toConfirmReminder = reminder
+                                        showConfirmDialog = true
+                                    }
+                                )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // View All Medications Button
                         OutlinedButton(
                             onClick = { onBottomNavClick("reminder") },
                             modifier = Modifier.fillMaxWidth(),
@@ -234,16 +268,14 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Health Metrics Section
+            // Health Metrics (unchanged)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -275,7 +307,6 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Health Metrics Grid
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -332,16 +363,14 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Daily Consumption Section
+            // Daily Consumption Section (unchanged)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -414,57 +443,138 @@ fun HomeScreen(
             }
         }
     }
+
+    // Confirmation dialog (simple, local) — shows when user taps check button on a med card
+    if (showConfirmDialog && toConfirmReminder != null) {
+        val r = toConfirmReminder!!
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false; toConfirmReminder = null },
+            title = { Text("Confirm Medication") },
+            text = {
+                Column {
+                    Text("Have you taken \"${r.title}\" at ${r.time}?")
+                    if (r.dosage.isNotEmpty()) Text("Dosage: ${r.dosage}")
+                    if (r.note.isNotEmpty()) Text("Note: ${r.note}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    takenMap[r.id] = true
+                    onConfirmTaken(r)
+                    showConfirmDialog = false
+                    toConfirmReminder = null
+                    Toast.makeText(ctx, "Marked as taken", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text("Yes, I've taken it")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showConfirmDialog = false
+                    toConfirmReminder = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
-// Helper Composables
+/**
+ * MedicationRowCard
+ * Reusable single-row card for a reminder that mirrors MedicationScheduleScreen styling.
+ */
 @Composable
-fun ReminderItem(reminder: Reminder, onClick: () -> Unit) {
-    Row(
+fun MedicationRowCard(
+    reminder: Reminder,
+    taken: Boolean,
+    onClickCard: () -> Unit,
+    onCheckClick: () -> Unit
+) {
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF8F9FA))
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(12.dp))
+            .shadow(1.dp, RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = if (taken) Color(0xFFE8F5E9) else Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClickCard() }
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(reminder.iconColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Medication,
-                    contentDescription = reminder.title,
+                    contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }
+
             Spacer(modifier = Modifier.width(12.dp))
-            Column {
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = reminder.title,
-                    fontSize = 14.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
+                    color = if (taken) Color(0xFF4CAF50) else Color.Black
                 )
-                Text(
-                    text = reminder.time,
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = reminder.time, fontSize = 13.sp, color = Color.Gray)
+                    if (reminder.dosage.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "• ${reminder.dosage}", fontSize = 13.sp, color = Color.Gray)
+                    }
+                }
+                if (reminder.note.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = reminder.note, fontSize = 12.sp, color = Color.Gray)
+                }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            if (!taken) {
+                Box() {
+                    Icon(
+                        imageVector = Icons.Default.CheckBoxOutlineBlank,
+                        contentDescription = "Not taken yet",
+                        tint = Color.Gray.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clickable { onCheckClick() },
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF4CAF50).copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Taken",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
         }
-        RadioButton(
-            selected = false,
-            onClick = onClick,
-            colors = RadioButtonDefaults.colors(
-                unselectedColor = Color(0xFF0A84FF)
-            )
-        )
     }
 }
 
@@ -529,9 +639,7 @@ fun HealthMetricCard(
             }
 
             Column {
-                Row(
-                    verticalAlignment = Alignment.Bottom
-                ) {
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = value,
                         fontSize = 22.sp,
@@ -586,5 +694,12 @@ fun HealthMetricCard(
 @Preview(showBackground = true)
 @Composable
 fun HomeScreenPreview() {
-    HomeScreen()
+    val sample = listOf(
+        Reminder(1, "12 Dec 2025", "08:00 AM", "Paracetamol", Color(0xFF0A84FF), dosage = "500mg", note = "After Meal"),
+        Reminder(2, "12 Dec 2025", "12:00 PM", "Metformin", Color(0xFFFF8C42), dosage = "1 tablet", note = "Before Meal")
+    )
+    HomeScreen(
+        reminders = sample,
+        onConfirmTaken = { /* preview action */ }
+    )
 }

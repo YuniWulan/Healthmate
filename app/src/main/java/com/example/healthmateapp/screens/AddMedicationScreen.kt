@@ -1,6 +1,7 @@
 package com.example.healthmateapp.screens
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.healthmateapp.ui.theme.BlueMain
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -63,10 +66,9 @@ fun AddMedicationScreen(
     // Time options (12-hour)
     val timeOptions = listOf(
         "06:00 AM", "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
-        "12:26 PM","12:28 PM", "12:30 PM","12:32 PM", "12:34 PM","12:36 PM","12:38 PM",
-        "12:40 PM", "12:42 PM", "12:44 PM", "12:46 PM", "12:48 PM", "12:58M", "01:02 PM",
-        "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM", "07:00 PM",
-        "08:00 PM", "09:00 PM", "10:00 PM"
+        "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "05:10 PM",
+        "05:56 PM", "05:58 PM", "06:00 PM", "07:00 PM", "07:02 PM", "07:04 PM", "07:06 PM",
+        "07:08 PM", "07:10 PM",  "08:00 PM", "09:00 PM", "10:00 PM"
     )
 
     // Frequency → default times mapping
@@ -106,7 +108,7 @@ fun AddMedicationScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF3A5A7F))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xffffff))
             )
         },
         containerColor = Color(0xFFF5F5F5)
@@ -140,7 +142,7 @@ fun AddMedicationScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Time Selection (dynamic based on frequency)
+            // ---- TIME SELECTION ----
             Text(
                 "Medication Time",
                 fontSize = 14.sp,
@@ -148,55 +150,50 @@ fun AddMedicationScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // Show list of time pickers according to times.size
-            Column(modifier = Modifier.fillMaxWidth()) {
-                times.forEachIndexed { idx, t ->
-                    Card(
+            val context = LocalContext.current
+
+            Column {
+                times.forEachIndexed { idx, timeValue ->
+                    OutlinedTextField(
+                        value = timeValue,
+                        onValueChange = {},
+                        label = { Text("Time ${idx + 1}") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
-                            .clickable { showTimeOptionsDialogForIndex = idx },
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color.Gray)
-                                Spacer(Modifier.width(12.dp))
-                                Text(t)
-                            }
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
-                        }
-                    }
+                            .onFocusChanged { state ->
+                                if (state.isFocused) {
+                                    showTimePicker(
+                                        context = context,
+                                        initialTime = times[idx]
+                                    ) { newTime ->
+                                        times[idx] = newTime
+                                    }
+                                }
+                            },
+                        readOnly = true,
+                        leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null) },
+                        trailingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = Color.White,
+                            focusedContainerColor = Color.White
+                        )
+                    )
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            // Allow adding/removing times only for frequencies that support multiple
+            // Add / Remove Buttons
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                // If frequency expects multiple times, allow manual adjust (add/remove)
                 if (times.size < 5) {
-                    TextButton(onClick = {
-                        // Add a default time (last time or default)
-                        val defaultToAdd = timeOptions.firstOrNull() ?: "08:00 AM"
-                        times.add(defaultToAdd)
-                    }) {
+                    TextButton(onClick = { times.add("08:00 AM") }) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("Add time")
                     }
                 }
                 if (times.size > 1) {
-                    TextButton(onClick = {
-                        times.removeAt(times.lastIndex)
-                    }) {
+                    TextButton(onClick = { times.removeAt(times.lastIndex) }) {
                         Icon(Icons.Default.Remove, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("Remove")
@@ -338,7 +335,6 @@ fun AddMedicationScreen(
                         .background(Color.White, RoundedCornerShape(8.dp))
                         .padding(4.dp)
                 ) {
-                    Text("Select 1", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }
             }
 
@@ -541,6 +537,44 @@ private fun ShowAndroidDatePicker(
         }
     }
 }
+
+fun showTimePicker(
+    context: Context,
+    initialTime: String?,
+    onTimeSelected: (String) -> Unit
+) {
+    val cal = Calendar.getInstance()
+
+    // Parse initial time if available ("08:00 AM")
+    if (initialTime != null) {
+        try {
+            val sdf = java.text.SimpleDateFormat("hh:mm a", Locale.US)
+            cal.time = sdf.parse(initialTime)!!
+        } catch (_: Exception) { }
+    }
+
+    val hour = cal.get(Calendar.HOUR_OF_DAY)
+    val minute = cal.get(Calendar.MINUTE)
+
+    TimePickerDialog(
+        context,
+        { _, selHour, selMinute ->
+            val chosenCal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, selHour)
+                set(Calendar.MINUTE, selMinute)
+            }
+
+            val formatted = SimpleDateFormat("hh:mm a", Locale.US)
+                .format(chosenCal.time)
+
+            onTimeSelected(formatted)
+        },
+        hour,
+        minute,
+        false // << 12-hour format
+    ).show()
+}
+
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
