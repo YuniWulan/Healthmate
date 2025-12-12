@@ -45,7 +45,6 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) {
             Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show()
-            // After notification permission, check alarm permission
             checkAndRequestAlarmPermission()
         } else {
             Toast.makeText(
@@ -68,7 +67,6 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Show alarm permission dialog if needed
                     if (showAlarmPermissionDialog) {
                         AlarmPermissionDialog(
                             onDismiss = {
@@ -101,7 +99,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermissions() {
-        // Check and request notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     this,
@@ -110,24 +107,25 @@ class MainActivity : ComponentActivity() {
             ) {
                 requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
-                // Notification permission already granted, check alarm permission
                 checkAndRequestAlarmPermission()
             }
         } else {
-            // For Android 12 and below, just check alarm permission
             checkAndRequestAlarmPermission()
         }
     }
 
     private fun checkAndRequestAlarmPermission() {
-        // Check exact alarm permission for Android 12+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
             if (!alarmManager.canScheduleExactAlarms()) {
-                // Show dialog to explain why we need this permission
                 showAlarmPermissionDialog = true
             }
         }
+    }
+
+    companion object {
+        // Global reference to MedicationViewModel
+        var medicationViewModel: MedicationViewModel? = null
     }
 }
 
@@ -153,11 +151,7 @@ fun AlarmPermissionDialog(
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = {
-                    onDismiss()
-                }
-            ) {
+            TextButton(onClick = onDismiss) {
                 Text("Later")
             }
         }
@@ -170,6 +164,7 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Profile : Screen("profile")
     object Reminder : Screen("reminder")
+    object Notification : Screen("notification")
     object AddMedication : Screen("add_medication")
     object EditProfile : Screen("edit_profile")
     object ChangePassword : Screen("change_password")
@@ -190,12 +185,37 @@ fun AppNavigation() {
     val healthMetricsViewModel: HealthMetricsViewModel = viewModel()
     val medicationViewModel: MedicationViewModel = viewModel()
 
+    // Store ViewModel reference globally
+    LaunchedEffect(medicationViewModel) {
+        MainActivity.medicationViewModel = medicationViewModel
+    }
+
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     val healthMetrics by healthMetricsViewModel.currentMetrics.collectAsState()
     val medications by medicationViewModel.medications.collectAsState()
 
-    // Check authentication state and navigate accordingly
+    // Observe ViewModel states for feedback
+    val isLoading by medicationViewModel.isLoading.collectAsState()
+    val error by medicationViewModel.error.collectAsState()
+    val success by medicationViewModel.operationSuccess.collectAsState()
+
+    // Show error toast
+    LaunchedEffect(error) {
+        error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            medicationViewModel.clearError()
+        }
+    }
+
+    // Show success toast
+    LaunchedEffect(success) {
+        success?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            medicationViewModel.clearSuccess()
+        }
+    }
+
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Success -> {
@@ -218,11 +238,10 @@ fun AppNavigation() {
                 Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                 authViewModel.resetAuthState()
             }
-            else -> { /* Do nothing */ }
+            else -> { }
         }
     }
 
-    // Check if user is already logged in at app start
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
             navController.navigate(Screen.Home.route) {
@@ -235,10 +254,8 @@ fun AppNavigation() {
         navController = navController,
         startDestination = Screen.Login.route
     ) {
-        // ============ LOGIN SCREEN ============
         composable(Screen.Login.route) {
             val isLoading = authState is AuthState.Loading
-
             LoginScreen(
                 onLoginClick = { email, password ->
                     authViewModel.login(email, password)
@@ -253,10 +270,8 @@ fun AppNavigation() {
             )
         }
 
-        // ============ REGISTER SCREEN ============
         composable(Screen.Register.route) {
             val isLoading = authState is AuthState.Loading
-
             RegisterScreen(
                 onRegisterClick = { username, email, password, role ->
                     authViewModel.register(email, password, username, role)
@@ -274,25 +289,23 @@ fun AppNavigation() {
             )
         }
 
-        // ============ HOME SCREEN ============
         composable(Screen.Home.route) {
-            // Reload health metrics when entering home screen
             LaunchedEffect(Unit) {
                 healthMetricsViewModel.loadHealthMetrics()
             }
 
-            // Get today's medications for reminders
             val today = LocalDate.now()
             val todayMedications = medicationViewModel.getMedicationsForDate(today)
 
-            // Convert to Reminder format for HomeScreen
             val reminders = todayMedications.map { med ->
                 Reminder(
                     id = med.id.hashCode(),
                     date = today.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy")),
                     time = med.time,
                     title = med.name,
-                    iconColor = Color(0xFFFF8C42)
+                    iconColor = Color(0xFFFF8C42),
+                    dosage = med.dosage,
+                    note = med.note
                 )
             }
 
@@ -306,7 +319,7 @@ fun AppNavigation() {
                 bodyCompositionValue = healthMetrics.bodyComposition?.bodyFat ?: "22.5",
                 reminders = reminders,
                 onNotificationClick = {
-                    Toast.makeText(context, "Notifications", Toast.LENGTH_SHORT).show()
+                    navController.navigate(Screen.Notification.route)
                 },
                 onProfileClick = {
                     navController.navigate(Screen.Profile.route)
@@ -330,7 +343,7 @@ fun AppNavigation() {
                 },
                 onBottomNavClick = { route ->
                     when (route) {
-                        "home" -> { /* Already on home */ }
+                        "home" -> { }
                         "reminder" -> {
                             navController.navigate(Screen.Reminder.route)
                         }
@@ -353,17 +366,30 @@ fun AppNavigation() {
                 },
                 onInputBodyComposition = {
                     Toast.makeText(context, "Input Body Composition", Toast.LENGTH_SHORT).show()
+                },
+                onConfirmTaken = { reminder ->
+                    // Find the medication and mark it as taken
+                    val medication = todayMedications.find { it.name == reminder.title }
+                    medication?.let {
+                        medicationViewModel.toggleMedicationTaken(
+                            date = today,
+                            medicationId = it.id,
+                            taken = true
+                        )
+                    }
                 }
             )
         }
 
-        // ============ MEDICATION SCHEDULE / REMINDER SCREEN ============
         composable(Screen.Reminder.route) {
             MedicationScheduleScreen(
                 navController = navController,
                 medications = medications,
-                onToggleTaken = { date, medicationId, taken ->
-                    medicationViewModel.toggleMedicationTaken(date, medicationId, taken)
+                onToggleTaken = { date, medicationId, isTaken ->
+                    medicationViewModel.toggleMedicationTaken(date, medicationId, isTaken)
+                },
+                onDeleteMedication = { date, medicationId ->
+                    medicationViewModel.deleteMedication(date, medicationId)
                 },
                 onAddMedicationClick = {
                     navController.navigate(Screen.AddMedication.route)
@@ -371,7 +397,14 @@ fun AppNavigation() {
             )
         }
 
-        // ============ ADD MEDICATION SCREEN ============
+        composable(Screen.Notification.route) {
+            NotificationScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         composable(Screen.AddMedication.route) {
             AddMedicationScreen(
                 onBackClick = {
@@ -385,22 +418,18 @@ fun AppNavigation() {
                         dosage = dosage,
                         note = note,
                         time = time,
+                        frequency = frequency,
                         startDate = startDate,
-                        endDate = endDate
+                        endDate = endDate,
+                        beforeMeal = beforeMeal
                     )
 
-                    Toast.makeText(
-                        context,
-                        "Medication added: $name - Alarm set for $time",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
+                    // Navigation will happen automatically via success toast observer
                     navController.popBackStack()
                 }
             )
         }
 
-        // ============ PROFILE SCREEN ============
         composable(Screen.Profile.route) {
             ProfileScreen(
                 userName = currentUser?.displayName ?: "User",
@@ -437,13 +466,12 @@ fun AppNavigation() {
                         "chat" -> {
                             Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()
                         }
-                        "account" -> { /* Already on profile */ }
+                        "account" -> { }
                     }
                 }
             )
         }
 
-        // ============ EDIT PROFILE SCREEN (Placeholder) ============
         composable(Screen.EditProfile.route) {
             PlaceholderScreen(
                 title = "Edit Profile",
@@ -451,7 +479,6 @@ fun AppNavigation() {
             )
         }
 
-        // ============ CHANGE PASSWORD SCREEN (Placeholder) ============
         composable(Screen.ChangePassword.route) {
             PlaceholderScreen(
                 title = "Change Password",
@@ -459,7 +486,6 @@ fun AppNavigation() {
             )
         }
 
-        // ============ HEALTH REPORT SCREEN (Placeholder) ============
         composable(Screen.HealthReport.route) {
             PlaceholderScreen(
                 title = "Health Report",
@@ -467,10 +493,8 @@ fun AppNavigation() {
             )
         }
 
-        // ============ FORGOT PASSWORD SCREEN ============
         composable(Screen.ForgotPassword.route) {
             val isLoading = authState is AuthState.Loading
-
             ForgotPasswordScreen(
                 onBackClick = {
                     navController.popBackStack()
@@ -482,7 +506,6 @@ fun AppNavigation() {
             )
         }
 
-        // ============ TERMS SCREEN ============
         composable(Screen.Terms.route) {
             TermsScreen(
                 onBackClick = {
@@ -491,7 +514,6 @@ fun AppNavigation() {
             )
         }
 
-        // ============ PRIVACY SCREEN ============
         composable(Screen.Privacy.route) {
             PrivacyScreen(
                 onBackClick = {
@@ -500,7 +522,6 @@ fun AppNavigation() {
             )
         }
 
-        // ============ BLOOD PRESSURE INPUT SCREEN ============
         composable(Screen.BloodPressureInput.route) {
             BloodPressureInputScreen(
                 onBackClick = { navController.popBackStack() },
@@ -516,7 +537,6 @@ fun AppNavigation() {
             )
         }
 
-        // ============ BLOOD GLUCOSE INPUT SCREEN ============
         composable(Screen.BloodGlucoseInput.route) {
             BloodGlucoseInputScreen(
                 onBackClick = { navController.popBackStack() },
@@ -532,7 +552,6 @@ fun AppNavigation() {
             )
         }
 
-        // ============ CHOLESTEROL INPUT SCREEN ============
         composable(Screen.CholesterolInput.route) {
             CholesterolInputScreen(
                 onBackClick = { navController.popBackStack() },
@@ -552,10 +571,7 @@ fun AppNavigation() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaceholderScreen(
-    title: String,
-    onBackClick: () -> Unit
-) {
+fun PlaceholderScreen(title: String, onBackClick: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -574,19 +590,10 @@ fun PlaceholderScreen(
                 .padding(padding),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "$title Screen",
-                    style = MaterialTheme.typography.headlineMedium
-                )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "$title Screen", style = MaterialTheme.typography.headlineMedium)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Coming soon...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
+                Text(text = "Coming soon...", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             }
         }
     }
@@ -594,13 +601,8 @@ fun PlaceholderScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ForgotPasswordScreen(
-    onBackClick: () -> Unit,
-    onResetClick: (String) -> Unit,
-    isLoading: Boolean = false
-) {
+fun ForgotPasswordScreen(onBackClick: () -> Unit, onResetClick: (String) -> Unit, isLoading: Boolean = false) {
     var email by remember { mutableStateOf("") }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -626,7 +628,6 @@ fun ForgotPasswordScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
-
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -635,19 +636,14 @@ fun ForgotPasswordScreen(
                 singleLine = true,
                 enabled = !isLoading
             )
-
             Spacer(modifier = Modifier.height(24.dp))
-
             Button(
                 onClick = { onResetClick(email) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
                     Text("Kirim Link Reset")
                 }
@@ -671,17 +667,8 @@ fun TermsScreen(onBackClick: () -> Unit) {
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp)
-        ) {
-            Text(
-                text = "Syarat Layanan",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+            Text(text = "Syarat Layanan", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 16.dp))
             Text(
                 text = """
                     1. Penerimaan Syarat
@@ -720,17 +707,8 @@ fun PrivacyScreen(onBackClick: () -> Unit) {
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp)
-        ) {
-            Text(
-                text = "Kebijakan Privasi",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+            Text(text = "Kebijakan Privasi", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 16.dp))
             Text(
                 text = """
                     1. Informasi yang Kami Kumpulkan

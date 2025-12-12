@@ -2,106 +2,123 @@ package com.example.healthmateapp.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.healthmateapp.screens.Medication
+import com.example.healthmateapp.screens.TakenDetails
 import com.example.healthmateapp.screens.alarm.MedicationAlarmScheduler
+import com.example.healthmateapp.screens.repository.MedicationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MedicationViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context: Context = application.applicationContext
+    private val repository = MedicationRepository()
 
     private val _medications = MutableStateFlow<Map<LocalDate, List<Medication>>>(emptyMap())
     val medications: StateFlow<Map<LocalDate, List<Medication>>> = _medications
 
-    init {
-        // Load sample data or from database
-        loadMedications()
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
+    private val _operationSuccess = MutableStateFlow<String?>(null)
+    val operationSuccess: StateFlow<String?> = _operationSuccess
+
+    companion object {
+        private const val TAG = "MedicationViewModel"
     }
 
-    private fun loadMedications() {
-        // This is sample data - in production, load from database
+    init {
+        loadMedicationsFromFirebase()
+    }
+
+    /**
+     * Load all medications from Firebase
+     */
+    private fun loadMedicationsFromFirebase() {
         viewModelScope.launch {
-            val sampleMedications = mutableMapOf<LocalDate, List<Medication>>()
-
-            // Example medications for today
-            val today = LocalDate.now()
-            sampleMedications[today] = listOf(
-                Medication(
-                    id = "med_1",
-                    name = "Aspirin",
-                    dosage = "100mg",
-                    note = "After Eating",
-                    time = "08:00",
-                    taken = false
-                ),
-                Medication(
-                    id = "med_2",
-                    name = "Metformin",
-                    dosage = "500mg",
-                    note = "Before Eating",
-                    time = "12:00",
-                    taken = false
-                )
-            )
-
-            _medications.value = sampleMedications
+            _isLoading.value = true
+            repository.getAllMedications()
+                .catch { e ->
+                    Log.e(TAG, "Error loading medications", e)
+                    _error.value = "Failed to load medications: ${e.message}"
+                    _isLoading.value = false
+                }
+                .collect { medicationsMap ->
+                    _medications.value = medicationsMap
+                    _isLoading.value = false
+                    Log.d(TAG, "Medications loaded: ${medicationsMap.size} dates")
+                }
         }
     }
 
+    /**
+     * Add a new medication and save to Firebase
+     */
     fun addMedication(
         name: String,
         dosage: String,
         note: String,
         time: String,
+        frequency: String,
         startDate: LocalDate,
-        endDate: LocalDate
+        endDate: LocalDate,
+        beforeMeal: Boolean
     ) {
         viewModelScope.launch {
-            val medicationId = "med_${System.currentTimeMillis()}"
+            _isLoading.value = true
 
-            // Create medication for each date in the range
-            val currentMedications = _medications.value.toMutableMap()
-            var currentDate = startDate
-
-            while (!currentDate.isAfter(endDate)) {
-                val medication = Medication(
-                    id = "${medicationId}_${currentDate}",
-                    name = name,
-                    dosage = dosage,
-                    note = note,
-                    time = time,
-                    taken = false
-                )
-
-                val existingMeds = currentMedications[currentDate]?.toMutableList() ?: mutableListOf()
-                existingMeds.add(medication)
-                currentMedications[currentDate] = existingMeds
-
-                currentDate = currentDate.plusDays(1)
-            }
-
-            _medications.value = currentMedications
-
-            // Schedule alarms for this medication
-            scheduleAlarmsForMedication(
-                medicationId = medicationId,
+            val result = repository.addMedication(
                 name = name,
                 dosage = dosage,
                 note = note,
                 time = time,
+                frequency = frequency,
                 startDate = startDate,
-                endDate = endDate
+                endDate = endDate,
+                beforeMeal = beforeMeal
             )
+
+            result.fold(
+                onSuccess = { medicationId ->
+                    Log.d(TAG, "Medication added successfully: $medicationId")
+                    _operationSuccess.value = "Medication added successfully"
+
+                    // Schedule alarms
+                    scheduleAlarmsForMedication(
+                        medicationId = medicationId,
+                        name = name,
+                        dosage = dosage,
+                        note = note,
+                        time = time,
+                        startDate = startDate,
+                        endDate = endDate
+                    )
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "Error adding medication", e)
+                    _error.value = "Failed to add medication: ${e.message}"
+                }
+            )
+
+            _isLoading.value = false
         }
     }
 
+    /**
+     * Schedule alarms for a medication
+     */
     private fun scheduleAlarmsForMedication(
         medicationId: String,
         name: String,
@@ -111,15 +128,23 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         startDate: LocalDate,
         endDate: LocalDate
     ) {
-        // Parse time string (e.g., "08:00" or "12:30")
-        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
         val localTime = try {
-            LocalTime.parse(time, timeFormatter)
-        } catch (e: Exception) {
-            LocalTime.of(8, 0) // Default to 8:00 AM if parsing fails
+            // Try 12-hour format first
+            val formatter12Hour = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH)
+            LocalTime.parse(time, formatter12Hour)
+        } catch (e1: Exception) {
+            try {
+                // Try 24-hour format
+                val formatter24Hour = DateTimeFormatter.ofPattern("HH:mm")
+                LocalTime.parse(time, formatter24Hour)
+            } catch (e2: Exception) {
+                Log.e(TAG, "Failed to parse time '$time'. Error: ${e2.message}")
+                LocalTime.of(8, 0) // Default to 8:00 AM
+            }
         }
 
-        // Schedule alarms for the date range
+        Log.d(TAG, "✅ Scheduling alarm for '$name' at $localTime (parsed from '$time') on dates $startDate to $endDate")
+
         MedicationAlarmScheduler.scheduleAlarmsForDateRange(
             context = context,
             medicationId = medicationId,
@@ -130,59 +155,171 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             endDate = endDate,
             time = localTime
         )
+
+        Log.d(TAG, "✅ Alarm scheduling completed for '$name'")
     }
 
-    fun toggleMedicationTaken(date: LocalDate, medicationId: String, taken: Boolean) {
+    /**
+     * Toggle medication taken status and save to Firebase
+     */
+    fun toggleMedicationTaken(
+        date: LocalDate,
+        medicationId: String,
+        taken: Boolean,
+        takenDetails: TakenDetails? = null
+    ) {
         viewModelScope.launch {
-            val currentMedications = _medications.value.toMutableMap()
-            val medsForDate = currentMedications[date]?.toMutableList() ?: return@launch
+            val result = repository.updateMedicationTaken(
+                medicationId = medicationId,
+                date = date,
+                taken = taken,
+                takenDetails = takenDetails
+            )
 
-            val index = medsForDate.indexOfFirst { it.id == medicationId }
-            if (index != -1) {
-                medsForDate[index] = medsForDate[index].copy(taken = taken)
-                currentMedications[date] = medsForDate
-                _medications.value = currentMedications
-            }
+            result.fold(
+                onSuccess = {
+                    Log.d(TAG, "Medication taken status updated successfully")
+                    _operationSuccess.value = if (taken) "Medication marked as taken" else "Medication marked as not taken"
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "Error updating medication taken status", e)
+                    _error.value = "Failed to update medication: ${e.message}"
+                }
+            )
         }
     }
 
+    /**
+     * Delete a medication and remove from Firebase
+     */
     fun deleteMedication(date: LocalDate, medicationId: String) {
         viewModelScope.launch {
-            val currentMedications = _medications.value.toMutableMap()
-            val medsForDate = currentMedications[date]?.toMutableList() ?: return@launch
+            _isLoading.value = true
 
-            val medication = medsForDate.find { it.id == medicationId }
-
-            medsForDate.removeAll { it.id == medicationId }
-
-            if (medsForDate.isEmpty()) {
-                currentMedications.remove(date)
-            } else {
-                currentMedications[date] = medsForDate
+            // Get medication details before deleting for alarm cancellation
+            val medication = _medications.value[date]?.find {
+                it.id == medicationId || it.id.startsWith(medicationId)
             }
 
-            _medications.value = currentMedications
+            val result = repository.deleteMedication(medicationId)
 
-            // Cancel the alarm for this medication
-            medication?.let {
-                val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-                val localTime = try {
-                    LocalTime.parse(it.time, timeFormatter)
-                } catch (e: Exception) {
-                    LocalTime.of(8, 0)
+            result.fold(
+                onSuccess = {
+                    Log.d(TAG, "Medication deleted successfully")
+                    _operationSuccess.value = "Medication deleted successfully"
+
+                    // Cancel alarms
+                    medication?.let {
+                        val localTime = try {
+                            val formatter12Hour = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH)
+                            LocalTime.parse(it.time, formatter12Hour)
+                        } catch (e1: Exception) {
+                            try {
+                                val formatter24Hour = DateTimeFormatter.ofPattern("HH:mm")
+                                LocalTime.parse(it.time, formatter24Hour)
+                            } catch (e2: Exception) {
+                                LocalTime.of(8, 0)
+                            }
+                        }
+
+                        MedicationAlarmScheduler.cancelAlarm(
+                            context = context,
+                            medicationId = medicationId,
+                            date = date,
+                            time = localTime
+                        )
+                    }
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "Error deleting medication", e)
+                    _error.value = "Failed to delete medication: ${e.message}"
                 }
+            )
 
-                MedicationAlarmScheduler.cancelAlarm(
-                    context = context,
-                    medicationId = medicationId,
-                    date = date,
-                    time = localTime
-                )
-            }
+            _isLoading.value = false
         }
     }
 
+    /**
+     * Update medication details
+     */
+    fun updateMedication(
+        medicationId: String,
+        name: String,
+        dosage: String,
+        note: String,
+        time: String,
+        frequency: String,
+        startDate: LocalDate,
+        endDate: LocalDate,
+        beforeMeal: Boolean
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+
+            val result = repository.updateMedication(
+                medicationId = medicationId,
+                name = name,
+                dosage = dosage,
+                note = note,
+                time = time,
+                frequency = frequency,
+                startDate = startDate,
+                endDate = endDate,
+                beforeMeal = beforeMeal
+            )
+
+            result.fold(
+                onSuccess = {
+                    Log.d(TAG, "Medication updated successfully")
+                    _operationSuccess.value = "Medication updated successfully"
+
+                    // Reschedule alarms with new details
+                    scheduleAlarmsForMedication(
+                        medicationId = medicationId,
+                        name = name,
+                        dosage = dosage,
+                        note = note,
+                        time = time,
+                        startDate = startDate,
+                        endDate = endDate
+                    )
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "Error updating medication", e)
+                    _error.value = "Failed to update medication: ${e.message}"
+                }
+            )
+
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Get medications for a specific date
+     */
     fun getMedicationsForDate(date: LocalDate): List<Medication> {
         return _medications.value[date] ?: emptyList()
+    }
+
+    /**
+     * Clear error message
+     */
+    fun clearError() {
+        _error.value = null
+    }
+
+    /**
+     * Clear success message
+     */
+    fun clearSuccess() {
+        _operationSuccess.value = null
+    }
+
+    /**
+     * Refresh medications from Firebase
+     */
+    fun refreshMedications() {
+        loadMedicationsFromFirebase()
     }
 }

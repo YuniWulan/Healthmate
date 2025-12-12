@@ -1,6 +1,5 @@
 package com.example.healthmateapp.screens
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,7 +19,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-
 data class NotificationItem(
     val id: String,
     val title: String,
@@ -37,9 +35,8 @@ enum class NotificationCategory {
     LAST_WEEK
 }
 
-
 @Composable
-fun NotificationScreen() {
+fun NotificationScreen(onBackClick: () -> Unit = {}) {
 
     val notifications = remember {
         mutableStateListOf(
@@ -89,9 +86,13 @@ fun NotificationScreen() {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.ArrowBack, null)
+            Icon(
+                Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                modifier = Modifier.clickable { onBackClick() }
+            )
             Text("Notifications", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Icon(Icons.Default.Settings, null)
+            Icon(Icons.Default.Settings, contentDescription = "Settings")
         }
 
         Spacer(modifier = Modifier.height(20.dp))

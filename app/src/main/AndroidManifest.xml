@@ -44,7 +44,7 @@
 
         <!-- Add Broadcast Receiver for Alarms -->
         <receiver
-            android:name=".screens.alarm.MedicationAlarmReceiver"
+            android:name=".alarm.MedicationAlarmReceiver"
             android:enabled="true"
             android:exported="false" />
 

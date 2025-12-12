@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -66,16 +67,106 @@ class HealthMetricsViewModel : ViewModel() {
     private val _currentMetrics = MutableStateFlow(HealthMetrics())
     val currentMetrics: StateFlow<HealthMetrics> = _currentMetrics
 
+    // ✅ ADD THIS: Store listener registration so we can remove it later
+    private var metricsListener: ListenerRegistration? = null
+
     companion object {
         private const val TAG = "HealthMetricsVM"
     }
 
     init {
-        loadHealthMetrics()
+        setupRealtimeListener()
     }
 
-    // Load health metrics from Firebase
-    // Structure: User/{uid}/patient/{uid}/healthMetrics/latest
+    // ✅ NEW METHOD: Setup real-time listener instead of one-time load
+    private fun setupRealtimeListener() {
+        val uid = auth.currentUser?.uid
+
+        if (uid == null) {
+            Log.e(TAG, "No user logged in!")
+            return
+        }
+
+        Log.d(TAG, "Setting up real-time listener for health metrics")
+
+        val docRef = firestore.collection("User")
+            .document(uid)
+            .collection("patient")
+            .document(uid)
+            .collection("healthMetrics")
+            .document("latest")
+
+        // Remove old listener if exists
+        metricsListener?.remove()
+
+        // Setup new real-time listener
+        metricsListener = docRef.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.e(TAG, "Error listening to health metrics: ${error.message}", error)
+                _healthMetricsState.value = HealthMetricsState.Error(
+                    error.message ?: "Failed to load health metrics"
+                )
+                return@addSnapshotListener
+            }
+
+            if (snapshot != null && snapshot.exists()) {
+                Log.d(TAG, "📡 Real-time update received! Data: ${snapshot.data}")
+
+                val bloodPressure = snapshot.get("bloodPressure") as? Map<*, *>
+                val bloodGlucose = snapshot.get("bloodGlucose") as? Map<*, *>
+                val cholesterol = snapshot.get("cholesterol") as? Map<*, *>
+                val bodyComposition = snapshot.get("bodyComposition") as? Map<*, *>
+
+                val metrics = HealthMetrics(
+                    bloodPressure = bloodPressure?.let {
+                        BloodPressureData(
+                            systolic = it["systolic"] as? String ?: "",
+                            diastolic = it["diastolic"] as? String ?: "",
+                            heartRate = it["heartRate"] as? String ?: "",
+                            note = it["note"] as? String ?: "",
+                            timestamp = it["timestamp"] as? Long ?: System.currentTimeMillis()
+                        )
+                    },
+                    bloodGlucose = bloodGlucose?.let {
+                        BloodGlucoseData(
+                            glucose = it["glucose"] as? String ?: "",
+                            testType = it["testType"] as? String ?: "",
+                            note = it["note"] as? String ?: "",
+                            timestamp = it["timestamp"] as? Long ?: System.currentTimeMillis()
+                        )
+                    },
+                    cholesterol = cholesterol?.let {
+                        CholesterolData(
+                            total = it["total"] as? String ?: "",
+                            ldl = it["ldl"] as? String ?: "",
+                            hdl = it["hdl"] as? String ?: "",
+                            triglycerides = it["triglycerides"] as? String ?: "",
+                            note = it["note"] as? String ?: "",
+                            timestamp = it["timestamp"] as? Long ?: System.currentTimeMillis()
+                        )
+                    },
+                    bodyComposition = bodyComposition?.let {
+                        BodyCompositionData(
+                            bodyFat = it["bodyFat"] as? String ?: "",
+                            muscleMass = it["muscleMass"] as? String ?: "",
+                            note = it["note"] as? String ?: "",
+                            timestamp = it["timestamp"] as? Long ?: System.currentTimeMillis()
+                        )
+                    }
+                )
+
+                _currentMetrics.value = metrics
+                _healthMetricsState.value = HealthMetricsState.Success(metrics)
+                Log.d(TAG, "✅ Metrics updated in real-time: $metrics")
+            } else {
+                Log.d(TAG, "Document doesn't exist yet. Creating empty metrics.")
+                _currentMetrics.value = HealthMetrics()
+                _healthMetricsState.value = HealthMetricsState.Success(HealthMetrics())
+            }
+        }
+    }
+
+    // Keep the old load method for manual refresh if needed
     fun loadHealthMetrics() {
         val uid = auth.currentUser?.uid
 
@@ -90,7 +181,6 @@ class HealthMetricsViewModel : ViewModel() {
             try {
                 _healthMetricsState.value = HealthMetricsState.Loading
 
-                // Path: User/{uid}/patient/{uid}/healthMetrics/latest
                 val docRef = firestore.collection("User")
                     .document(uid)
                     .collection("patient")
@@ -176,7 +266,6 @@ class HealthMetricsViewModel : ViewModel() {
         }
 
         Log.d(TAG, "Saving blood pressure for uid: $uid")
-        Log.d(TAG, "Values - Systolic: $systolic, Diastolic: $diastolic, Heart Rate: $heartRate")
 
         viewModelScope.launch {
             try {
@@ -190,16 +279,12 @@ class HealthMetricsViewModel : ViewModel() {
                     timestamp = System.currentTimeMillis()
                 )
 
-                // Path: User/{uid}/patient/{uid}/healthMetrics/latest
                 val docRef = firestore.collection("User")
                     .document(uid)
                     .collection("patient")
                     .document(uid)
                     .collection("healthMetrics")
                     .document("latest")
-
-                Log.d(TAG, "Saving to: User/$uid/patient/$uid/healthMetrics/latest")
-                Log.d(TAG, "Data: $bloodPressureData")
 
                 docRef.set(
                     mapOf("bloodPressure" to bloodPressureData),
@@ -209,7 +294,7 @@ class HealthMetricsViewModel : ViewModel() {
                 Log.d(TAG, "✅ Successfully saved to 'latest' document")
 
                 // Also save to history
-                val historyRef = firestore.collection("User")
+                firestore.collection("User")
                     .document(uid)
                     .collection("patient")
                     .document(uid)
@@ -219,13 +304,7 @@ class HealthMetricsViewModel : ViewModel() {
                     .add(bloodPressureData)
                     .await()
 
-                Log.d(TAG, "✅ Successfully saved to history: ${historyRef.id}")
-
-                _currentMetrics.value = _currentMetrics.value.copy(
-                    bloodPressure = bloodPressureData
-                )
-                _healthMetricsState.value = HealthMetricsState.Success(_currentMetrics.value)
-
+                // Real-time listener will update the state automatically
                 Log.d(TAG, "✅ Blood pressure saved successfully!")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error saving blood pressure: ${e.message}", e)
@@ -246,9 +325,6 @@ class HealthMetricsViewModel : ViewModel() {
             return
         }
 
-        Log.d(TAG, "Saving blood glucose for uid: $uid")
-        Log.d(TAG, "Values - Glucose: $glucose, Test Type: $testType")
-
         viewModelScope.launch {
             try {
                 _healthMetricsState.value = HealthMetricsState.Loading
@@ -267,16 +343,12 @@ class HealthMetricsViewModel : ViewModel() {
                     .collection("healthMetrics")
                     .document("latest")
 
-                Log.d(TAG, "Saving to: User/$uid/patient/$uid/healthMetrics/latest")
-
                 docRef.set(
                     mapOf("bloodGlucose" to bloodGlucoseData),
                     com.google.firebase.firestore.SetOptions.merge()
                 ).await()
 
-                Log.d(TAG, "✅ Successfully saved to 'latest' document")
-
-                val historyRef = firestore.collection("User")
+                firestore.collection("User")
                     .document(uid)
                     .collection("patient")
                     .document(uid)
@@ -285,13 +357,6 @@ class HealthMetricsViewModel : ViewModel() {
                     .collection("bloodGlucose")
                     .add(bloodGlucoseData)
                     .await()
-
-                Log.d(TAG, "✅ Successfully saved to history: ${historyRef.id}")
-
-                _currentMetrics.value = _currentMetrics.value.copy(
-                    bloodGlucose = bloodGlucoseData
-                )
-                _healthMetricsState.value = HealthMetricsState.Success(_currentMetrics.value)
 
                 Log.d(TAG, "✅ Blood glucose saved successfully!")
             } catch (e: Exception) {
@@ -313,9 +378,6 @@ class HealthMetricsViewModel : ViewModel() {
             return
         }
 
-        Log.d(TAG, "Saving cholesterol for uid: $uid")
-        Log.d(TAG, "Values - Total: $total, LDL: $ldl, HDL: $hdl, Triglycerides: $triglycerides")
-
         viewModelScope.launch {
             try {
                 _healthMetricsState.value = HealthMetricsState.Loading
@@ -336,16 +398,12 @@ class HealthMetricsViewModel : ViewModel() {
                     .collection("healthMetrics")
                     .document("latest")
 
-                Log.d(TAG, "Saving to: User/$uid/patient/$uid/healthMetrics/latest")
-
                 docRef.set(
                     mapOf("cholesterol" to cholesterolData),
                     com.google.firebase.firestore.SetOptions.merge()
                 ).await()
 
-                Log.d(TAG, "✅ Successfully saved to 'latest' document")
-
-                val historyRef = firestore.collection("User")
+                firestore.collection("User")
                     .document(uid)
                     .collection("patient")
                     .document(uid)
@@ -354,13 +412,6 @@ class HealthMetricsViewModel : ViewModel() {
                     .collection("cholesterol")
                     .add(cholesterolData)
                     .await()
-
-                Log.d(TAG, "✅ Successfully saved to history: ${historyRef.id}")
-
-                _currentMetrics.value = _currentMetrics.value.copy(
-                    cholesterol = cholesterolData
-                )
-                _healthMetricsState.value = HealthMetricsState.Success(_currentMetrics.value)
 
                 Log.d(TAG, "✅ Cholesterol saved successfully!")
             } catch (e: Exception) {
@@ -382,9 +433,6 @@ class HealthMetricsViewModel : ViewModel() {
             return
         }
 
-        Log.d(TAG, "Saving body composition for uid: $uid")
-        Log.d(TAG, "Values - Body Fat: $bodyFat, Muscle Mass: $muscleMass")
-
         viewModelScope.launch {
             try {
                 _healthMetricsState.value = HealthMetricsState.Loading
@@ -403,16 +451,12 @@ class HealthMetricsViewModel : ViewModel() {
                     .collection("healthMetrics")
                     .document("latest")
 
-                Log.d(TAG, "Saving to: User/$uid/patient/$uid/healthMetrics/latest")
-
                 docRef.set(
                     mapOf("bodyComposition" to bodyCompositionData),
                     com.google.firebase.firestore.SetOptions.merge()
                 ).await()
 
-                Log.d(TAG, "✅ Successfully saved to 'latest' document")
-
-                val historyRef = firestore.collection("User")
+                firestore.collection("User")
                     .document(uid)
                     .collection("patient")
                     .document(uid)
@@ -421,13 +465,6 @@ class HealthMetricsViewModel : ViewModel() {
                     .collection("bodyComposition")
                     .add(bodyCompositionData)
                     .await()
-
-                Log.d(TAG, "✅ Successfully saved to history: ${historyRef.id}")
-
-                _currentMetrics.value = _currentMetrics.value.copy(
-                    bodyComposition = bodyCompositionData
-                )
-                _healthMetricsState.value = HealthMetricsState.Success(_currentMetrics.value)
 
                 Log.d(TAG, "✅ Body composition saved successfully!")
             } catch (e: Exception) {
@@ -442,5 +479,12 @@ class HealthMetricsViewModel : ViewModel() {
     // Reset state
     fun resetState() {
         _healthMetricsState.value = HealthMetricsState.Idle
+    }
+
+    // ✅ ADD THIS: Clean up listener when ViewModel is destroyed
+    override fun onCleared() {
+        super.onCleared()
+        metricsListener?.remove()
+        Log.d(TAG, "Real-time listener removed")
     }
 }
