@@ -20,9 +20,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// -----------------------------------------------------------
-// DATA
-// -----------------------------------------------------------
 
 data class NotificationItem(
     val id: String,
@@ -40,9 +37,6 @@ enum class NotificationCategory {
     LAST_WEEK
 }
 
-// -----------------------------------------------------------
-// SCREEN
-// -----------------------------------------------------------
 
 @Composable
 fun NotificationScreen() {

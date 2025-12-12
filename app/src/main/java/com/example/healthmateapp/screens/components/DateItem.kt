@@ -47,7 +47,7 @@ fun DateItem(
             // Hari (Sen, Sel, Rab)
             Text(
                 text = date.dayOfWeek
-                    .getDisplayName(TextStyle.SHORT, Locale("id"))
+                    .getDisplayName(TextStyle.SHORT, Locale("eng"))
                     .replaceFirstChar { it.uppercase() },
                 fontSize = 12.sp,
                 color = if (isSelected) Color.White else Color.Gray,

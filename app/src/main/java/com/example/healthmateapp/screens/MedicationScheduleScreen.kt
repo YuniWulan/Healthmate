@@ -1,14 +1,13 @@
 package com.example.healthmateapp.screens
 
-
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.healthmateapp.components.BottomNavigationBar
 import com.example.healthmateapp.screens.components.MonthGrid
 import com.example.healthmateapp.screens.components.WeekStrip
 import com.example.healthmateapp.ui.theme.BgGray
@@ -28,14 +28,13 @@ import com.example.healthmateapp.ui.theme.BlueMain
 import com.example.healthmateapp.ui.theme.GrayLight
 import java.time.DayOfWeek
 import java.time.LocalDate
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.draw.drawBehind
-import java.time.format.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.text.style.TextOverflow
-import java.util.Locale
+import com.example.healthmateapp.screens.components.MonthStrip
 
 // ------------------ MODEL ------------------
 data class Medication(
@@ -53,178 +52,101 @@ private fun startOfWeek(date: LocalDate): LocalDate {
     return date.minusDays(diff.toLong())
 }
 
-private fun sampleSchedule(): MutableMap<LocalDate, MutableList<Medication>> {
-    val map = mutableMapOf<LocalDate, MutableList<Medication>>()
-
-    val today = LocalDate.now()
-    val monday = startOfWeek(today)
-
-    val dummyList = listOf(
-        // Monday
-        Medication("m1", "Amoxicillin", "Before Eating", "250 mg", "07:00 AM"),
-        Medication("m2", "Vitamin C", "After Eating", "1000 mg", "08:00 AM"),
-
-        // Tuesday
-        Medication("m3", "Paracetamol", "After Eating", "500 mg", "12:00 PM"),
-        Medication("m4", "Test", "Before Eating", "250 mg", "09:00 AM"),
-
-        // Wednesday
-        Medication("m5", "Ibuprofen", "If pain", "400 mg", "01:00 PM"),
-        Medication("m6", "Cetirizine", "Before Bed", "10 mg", "09:00 PM"),
-
-        // Thursday
-        Medication("m7", "Omeprazole", "Before Eating", "20 mg", "06:00 AM"),
-        Medication("m8", "Albuterol", "If needed", "1 mg", "09:00 AM"),
-
-        // Friday
-        Medication("m9", "Metformin", "After Eating", "500 mg", "07:00 AM"),
-        Medication("m10", "Ranitidine", "Before Eating", "150 mg", "08:00 AM"),
-
-        // Saturday
-        Medication("m11", "Zinc", "After Eating", "30 mg", "10:00 AM"),
-        Medication("m12", "Magnesium", "Before Bed", "200 mg", "09:00 PM"),
-
-        // Sunday
-        Medication("m13", "Calcium", "After Eating", "600 mg", "11:00 AM"),
-        Medication("m14", "Probiotic", "Before Eating", "1 capsule", "07:00 AM")
-    )
-
-    for (i in 0 until 7) {
-        val date = monday.plusDays(i.toLong())
-        val start = i * 2
-        val end = start + 2
-
-        map[date] = dummyList.subList(start,end).toMutableList()
-    }
-    return map
+private fun groupByTime(meds: List<Medication>): List<Pair<String, List<Medication>>> {
+    return meds.groupBy { it.time }
+        .toList()
+        .sortedBy { it.first }
 }
-
-private fun groupByTime(meds: List<Medication>): Map<String, List<Medication>> =
-    meds.groupBy { it.time }
 
 // ------------------ COMPONENTS ------------------
-
-@Composable
-fun BottomNavigationBar(
-    currentRoute: String = "home",
-    onNavigate: (String) -> Unit = {}
-) {
-    NavigationBar(
-        containerColor = Color.White,
-        tonalElevation = 8.dp
-    ) {
-        NavigationBarItem(
-            selected = currentRoute == "home",
-            onClick = { onNavigate("home") },
-            icon = { Icon(Icons.Default.Home, "Home") },
-            label = { Text("Home", fontSize = 12.sp) }
-        )
-        NavigationBarItem(
-            selected = currentRoute == "reminder",
-            onClick = { onNavigate("reminder") },
-            icon = { Icon(Icons.Default.DateRange, "Reminder") },
-            label = { Text("Reminder", fontSize = 12.sp) }
-        )
-        NavigationBarItem(
-            selected = currentRoute == "chat",
-            onClick = { onNavigate("chat") },
-            icon = { Icon(Icons.AutoMirrored.Filled.Chat, "Chat") },
-            label = { Text("Chat", fontSize = 12.sp) }
-        )
-        NavigationBarItem(
-            selected = currentRoute == "account",
-            onClick = { onNavigate("account") },
-            icon = { Icon(Icons.Default.Person, "Account") },
-            label = { Text("Account", fontSize = 12.sp) }
-        )
-    }
-}
 
 @Composable
 fun TimelineItem(
     time: String,
     totalItems: Int,
-    content: @Composable () -> Unit
+    medications: List<Medication>,
+    onToggleTaken: (Medication, Boolean) -> Unit
 ) {
-
     val dotSize = 14.dp
-    val dotToTextGap = 6.dp
+    val dotToTextGap = 12.dp
     val lineWidth = 2.dp
     val lineTopGap = 4.dp
 
-    Layout(
-        modifier = Modifier.drawBehind {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val dotPx = dotSize.toPx()
+                val linePx = lineWidth.toPx()
+                val gapPx = lineTopGap.toPx()
 
-            val dotPx = dotSize.toPx()
-            val linePx = lineWidth.toPx()
-            val gapPx = lineTopGap.toPx()
+                val lineLeft = (dotPx / 2f) - (linePx / 2f)
 
-            // Garis tepat di tengah dot
-            val lineLeft = (dotPx / 2f) - (linePx / 2f)
+                val startY = dotPx + gapPx
+                val endY = size.height
 
-            val startY = dotPx + gapPx
-            val endY = size.height
-
-            drawRect(
-                color = Color.Black.copy(alpha = 0.12f),
-                topLeft = Offset(lineLeft, startY),
-                size = Size(linePx, (endY - startY).coerceAtLeast(0f))
+                drawRect(
+                    color = Color.Black.copy(alpha = 0.12f),
+                    topLeft = Offset(lineLeft, startY),
+                    size = Size(linePx, (endY - startY).coerceAtLeast(0f))
+                )
+            }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(dotSize)
+                    .background(Color.Black.copy(alpha = 0.9f), RoundedCornerShape(3.dp))
             )
-        },
-        content = {
 
-            // ROW HEAD
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(dotSize)
-                        .background(Color.Black.copy(alpha = 0.9f), RoundedCornerShape(3.dp))
-                )
+            Spacer(Modifier.width(dotToTextGap))
 
-                Spacer(Modifier.width(dotToTextGap))
+            Text(
+                text = time,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
 
-                Text(
-                    text = time,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            Spacer(Modifier.weight(1f))
 
-                Spacer(Modifier.weight(1f))
-
-                Text(
-                    text = "$totalItems Total",
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-            }
-
-            Column {
-                Spacer(Modifier.height(32.dp))
-                content()
-            }
+            Text(
+                text = "$totalItems Total",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
         }
-    ) { measurables, constraints ->
 
-        val left = measurables[0].measure(constraints)
-        val right = measurables[1].measure(constraints)
+        Spacer(Modifier.height(16.dp))
 
-        val totalHeight = maxOf(left.height, right.height)
+        medications.forEachIndexed { index, med ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.width(dotSize + dotToTextGap))
 
-        layout(constraints.maxWidth, totalHeight) {
-            left.place(0, 0)
-            right.place(left.width - 328.dp.roundToPx(), 0)
+                MedicationCard(
+                    med = med,
+                    onToggleTaken = { taken -> onToggleTaken(med, taken) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            if (index < medications.size - 1) {
+                Spacer(Modifier.height(12.dp))
+            }
         }
     }
 }
 
-
 @Composable
-fun MedicationCard(med: Medication, onToggleTaken: (Boolean) -> Unit) {
+fun MedicationCard(
+    med: Medication,
+    onToggleTaken: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(14.dp)
@@ -262,20 +184,26 @@ fun MedicationCard(med: Medication, onToggleTaken: (Boolean) -> Unit) {
             ) {
                 Box(
                     modifier = Modifier
-                        .size(15.dp)
+                        .size(24.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (med.taken) BlueMain else Color(0xFFE4E4E4)),
                     contentAlignment = Alignment.Center
                 ) {
                     if (med.taken) {
-                        Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(12.dp))
+                        Icon(
+                            Icons.Default.Check,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }
         }
     }
-}
 
+    // Month Picker Dialog
+}
 
 @Composable
 fun CalendarHeader(
@@ -311,26 +239,40 @@ fun CalendarHeader(
     }
 }
 
-// ------------------ SCREEN ------------------
-
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MedicationScheduleScreen(
     navController: NavController? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    medications: Map<LocalDate, List<Medication>> = emptyMap(),
+    onToggleTaken: (LocalDate, String, Boolean) -> Unit = { _, _, _ -> },
+    onAddMedicationClick: () -> Unit = {}
 ) {
-    val schedule = remember { sampleSchedule() }
-
     var focusedDate by remember { mutableStateOf(LocalDate.now()) }
     var viewWeekly by remember { mutableStateOf(true) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var showMonthPicker by remember { mutableStateOf(false) }
 
-    val medsForSelected by remember {
-        derivedStateOf { schedule[selectedDate] ?: emptyList() }
+    // Update week start when focusedDate or selectedDate changes
+    val weekStart by remember(focusedDate, selectedDate) {
+        derivedStateOf {
+            if (viewWeekly) {
+                startOfWeek(selectedDate)
+            } else {
+                startOfWeek(focusedDate)
+            }
+        }
+    }
+
+    val medsForSelected by remember(selectedDate, medications) {
+        derivedStateOf { medications[selectedDate] ?: emptyList() }
     }
     val grouped by remember(medsForSelected) {
         derivedStateOf { groupByTime(medsForSelected) }
     }
+
+    // Month list for picker
+    val monthFormatter = java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy")
 
     Scaffold(
         modifier = modifier,
@@ -340,6 +282,15 @@ fun MedicationScheduleScreen(
                 currentRoute = "reminder",
                 onNavigate = { route -> navController?.navigate(route) }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddMedicationClick,
+                containerColor = BlueMain,
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Medication")
+            }
         }
     ) { innerPadding ->
         Column(
@@ -357,7 +308,6 @@ fun MedicationScheduleScreen(
                     .fillMaxWidth()
                     .padding(bottom = 12.dp)
             ) {
-
                 Text(
                     text = "My Medications",
                     fontWeight = FontWeight.Bold,
@@ -368,9 +318,135 @@ fun MedicationScheduleScreen(
 
             Spacer(Modifier.height(6.dp))
 
+            // Month Selector Dropdown
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showMonthPicker = true },
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = BlueMain,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = focusedDate.format(monthFormatter),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = "Tap to change month",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Select Month",
+                        tint = Color.Gray
+                    )
+                }
+            }
+
+            if (showMonthPicker) {
+                // Pre-calculate month list outside of dialog to avoid recomposition issues
+                val previousMonths = remember(focusedDate) {
+                    List(3) { i -> focusedDate.minusMonths((3 - i).toLong()) }
+                }
+                val nextMonths = remember(focusedDate) {
+                    List(6) { i -> focusedDate.plusMonths((i + 1).toLong()) }
+                }
+
+                AlertDialog(
+                    onDismissRequest = { showMonthPicker = false },
+                    title = { Text("Select Month") },
+                    text = {
+                        Column(
+                            modifier = Modifier
+                                .heightIn(max = 400.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            // Previous months
+                            previousMonths.forEach { date ->
+                                TextButton(
+                                    onClick = {
+                                        focusedDate = date
+                                        selectedDate = date.withDayOfMonth(1)
+                                        showMonthPicker = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        date.format(monthFormatter),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+
+                            // Current month
+                            TextButton(
+                                onClick = {
+                                    val now = LocalDate.now()
+                                    focusedDate = now
+                                    selectedDate = now
+                                    showMonthPicker = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    LocalDate.now().format(monthFormatter) + " (Current)",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    fontWeight = FontWeight.Bold,
+                                    color = BlueMain
+                                )
+                            }
+
+                            // Next months
+                            nextMonths.forEach { date ->
+                                TextButton(
+                                    onClick = {
+                                        focusedDate = date
+                                        selectedDate = date.withDayOfMonth(1)
+                                        showMonthPicker = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        date.format(monthFormatter),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showMonthPicker = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
             if (viewWeekly) {
-                WeekStrip(
-                    weekStart = startOfWeek(focusedDate),
+                MonthStrip(
+                    month = focusedDate,
                     selectedDate = selectedDate,
                     onSelectDate = { selectedDate = it }
                 )
@@ -399,26 +475,46 @@ fun MedicationScheduleScreen(
             Spacer(Modifier.height(12.dp))
 
             if (medsForSelected.isEmpty()) {
-                Text("Tidak ada jadwal obat pada hari ini", color = Color.Gray)
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Default.MedicalServices,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = Color.Gray
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "No medication schedule for this day",
+                        color = Color.Gray,
+                        fontSize = 16.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = onAddMedicationClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = BlueMain)
+                    ) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add Medication")
+                    }
+                }
             } else {
-                LazyColumn {
-                    grouped.forEach { (time, meds) ->
-
-                        val totalThisHour = meds.size
-
-                        items(meds) { med ->
-                            TimelineItem(
-                                time = time,
-                                totalItems = totalThisHour
-                            ){
-                                MedicationCard(
-                                    med = med,
-                                    onToggleTaken = { med.taken = it }
-                                )
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    items(grouped) { (time, meds) ->
+                        TimelineItem(
+                            time = time,
+                            totalItems = meds.size,
+                            medications = meds,
+                            onToggleTaken = { med, taken ->
+                                onToggleTaken(selectedDate, med.id, taken)
                             }
-                        }
-
-                        item { Spacer(Modifier.height(12.dp)) }
+                        )
                     }
                 }
             }
