@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -20,8 +21,14 @@ import androidx.navigation.compose.rememberNavController
 import com.example.healthmateapp.screens.LoginScreen
 import com.example.healthmateapp.screens.RegisterScreen
 import com.example.healthmateapp.screens.HomeScreen
+import com.example.healthmateapp.screens.ProfileScreen
+import com.example.healthmateapp.screens.BloodPressureInputScreen
+import com.example.healthmateapp.screens.BloodGlucoseInputScreen
+import com.example.healthmateapp.screens.CholesterolInputScreen
 import com.example.healthmateapp.viewmodel.AuthViewModel
 import com.example.healthmateapp.viewmodel.AuthState
+import com.example.healthmateapp.viewmodel.HealthMetricsViewModel
+import com.example.healthmateapp.viewmodel.HealthMetricsState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,9 +50,16 @@ sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Register : Screen("register")
     object Home : Screen("home")
+    object Profile : Screen("profile")
+    object EditProfile : Screen("edit_profile")
+    object ChangePassword : Screen("change_password")
+    object HealthReport : Screen("health_report")
     object ForgotPassword : Screen("forgot_password")
     object Terms : Screen("terms")
     object Privacy : Screen("privacy")
+    object BloodPressureInput : Screen("blood_pressure_input")
+    object BloodGlucoseInput : Screen("blood_glucose_input")
+    object CholesterolInput : Screen("cholesterol_input")
 }
 
 @Composable
@@ -53,9 +67,12 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val context = LocalContext.current
     val authViewModel: AuthViewModel = viewModel()
+    val healthMetricsViewModel: HealthMetricsViewModel = viewModel()
 
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
+    val healthMetrics by healthMetricsViewModel.currentMetrics.collectAsState()
+    val healthMetricsState by healthMetricsViewModel.healthMetricsState.collectAsState()
 
     // Check authentication state and navigate accordingly
     LaunchedEffect(authState) {
@@ -120,8 +137,8 @@ fun AppNavigation() {
             val isLoading = authState is AuthState.Loading
 
             RegisterScreen(
-                onRegisterClick = { username, email, password ->
-                    authViewModel.register(email, password, username)
+                onRegisterClick = { username, email, password, role ->
+                    authViewModel.register(email, password, username, role)
                 },
                 onLoginClick = {
                     navController.popBackStack()
@@ -138,13 +155,24 @@ fun AppNavigation() {
 
         // ============ HOME SCREEN ============
         composable(Screen.Home.route) {
+
+            LaunchedEffect(Unit) {
+                healthMetricsViewModel.loadHealthMetrics()
+            }
+
             HomeScreen(
                 userName = currentUser?.displayName ?: "User",
+                bloodPressureValue = healthMetrics.bloodPressure?.let {
+                    "${it.systolic}/${it.diastolic}"
+                } ?: "120/80",
+                bloodGlucoseValue = healthMetrics.bloodGlucose?.glucose ?: "95",
+                cholesterolValue = healthMetrics.cholesterol?.total ?: "180",
+                bodyCompositionValue = healthMetrics.bodyComposition?.bodyFat ?: "22.5",
                 onNotificationClick = {
                     Toast.makeText(context, "Notifications", Toast.LENGTH_SHORT).show()
                 },
                 onProfileClick = {
-                    Toast.makeText(context, "Profile", Toast.LENGTH_SHORT).show()
+                    navController.navigate(Screen.Profile.route)
                 },
                 onReminderClick = { reminder ->
                     Toast.makeText(
@@ -155,14 +183,107 @@ fun AppNavigation() {
                 },
                 onRecordConsumptionClick = {
                     Toast.makeText(context, "Record Consumption", Toast.LENGTH_SHORT).show()
+                },
+                onLogoutClick = {
+                    authViewModel.logout()
+                    Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
+                onBottomNavClick = { route ->
+                    when (route) {
+                        "home" -> { /* Already on home */ }
+                        "reminder" -> {
+                            Toast.makeText(context, "Reminder feature coming soon", Toast.LENGTH_SHORT).show()
+                        }
+                        "chat" -> {
+                            Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()
+                        }
+                        "account" -> {
+                            navController.navigate(Screen.Profile.route)
+                        }
+                    }
+                },
+                onInputBloodPressure = {
+                    navController.navigate(Screen.BloodPressureInput.route)
+                },
+                onInputBloodGlucose = {
+                    navController.navigate(Screen.BloodGlucoseInput.route)
+                },
+                onInputCholesterol = {
+                    navController.navigate(Screen.CholesterolInput.route)
+                },
+                onInputBodyComposition = {
+                    Toast.makeText(context, "Input Body Composition", Toast.LENGTH_SHORT).show()
                 }
-//                onLogoutClick = {
-//                    authViewModel.logout()
-//                    Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
-//                    navController.navigate(Screen.Login.route) {
-//                        popUpTo(Screen.Home.route) { inclusive = true }
-//                    }
-//                }
+            )
+        }
+
+        // ============ PROFILE SCREEN ============
+        composable(Screen.Profile.route) {
+            ProfileScreen(
+                userName = currentUser?.displayName ?: "User",
+                userEmail = currentUser?.email ?: "user@example.com",
+                onEditProfileClick = {
+                    navController.navigate(Screen.EditProfile.route)
+                },
+                onChangePasswordClick = {
+                    navController.navigate(Screen.ChangePassword.route)
+                },
+                onHealthReportClick = {
+                    navController.navigate(Screen.HealthReport.route)
+                },
+                onTermsClick = {
+                    navController.navigate(Screen.Terms.route)
+                },
+                onLogoutClick = {
+                    authViewModel.logout()
+                    Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
+                onBottomNavClick = { route ->
+                    when (route) {
+                        "home" -> {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Home.route) { inclusive = true }
+                            }
+                        }
+                        "reminder" -> {
+                            Toast.makeText(context, "Reminder feature coming soon", Toast.LENGTH_SHORT).show()
+                        }
+                        "chat" -> {
+                            Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()
+                        }
+                        "account" -> { /* Already on profile */ }
+                    }
+                }
+            )
+        }
+
+        // ============ EDIT PROFILE SCREEN (Placeholder) ============
+        composable(Screen.EditProfile.route) {
+            PlaceholderScreen(
+                title = "Edit Profile",
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // ============ CHANGE PASSWORD SCREEN (Placeholder) ============
+        composable(Screen.ChangePassword.route) {
+            PlaceholderScreen(
+                title = "Change Password",
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // ============ HEALTH REPORT SCREEN (Placeholder) ============
+        composable(Screen.HealthReport.route) {
+            PlaceholderScreen(
+                title = "Health Report",
+                onBackClick = { navController.popBackStack() }
             )
         }
 
@@ -198,10 +319,98 @@ fun AppNavigation() {
                 }
             )
         }
+
+        // ============ BLOOD PRESSURE INPUT SCREEN ============
+        composable(Screen.BloodPressureInput.route) {
+            BloodPressureInputScreen(
+                onBackClick = { navController.popBackStack() },
+                onSaveClick = { systolic, diastolic, heartRate, note ->
+                    healthMetricsViewModel.saveBloodPressure(systolic, diastolic, heartRate, note)
+                    Toast.makeText(
+                        context,
+                        "Blood pressure saved: $systolic/$diastolic mmHg",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // ============ BLOOD GLUCOSE INPUT SCREEN ============
+        composable(Screen.BloodGlucoseInput.route) {
+            BloodGlucoseInputScreen(
+                onBackClick = { navController.popBackStack() },
+                onSaveClick = { glucose, testType, note ->
+                    healthMetricsViewModel.saveBloodGlucose(glucose, testType, note)
+                    Toast.makeText(
+                        context,
+                        "Blood glucose saved: $glucose mg/dL ($testType)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // ============ CHOLESTEROL INPUT SCREEN ============
+        composable(Screen.CholesterolInput.route) {
+            CholesterolInputScreen(
+                onBackClick = { navController.popBackStack() },
+                onSaveClick = { total, ldl, hdl, triglycerides, note ->
+                    healthMetricsViewModel.saveCholesterol(total, ldl, hdl, triglycerides, note)
+                    Toast.makeText(
+                        context,
+                        "Cholesterol saved: $total mg/dL",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    navController.popBackStack()
+                }
+            )
+        }
     }
 }
 
-// ============ ADDITIONAL SCREENS ============
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlaceholderScreen(
+    title: String,
+    onBackClick: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "$title Screen",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Coming soon...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
