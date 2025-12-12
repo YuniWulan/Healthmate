@@ -2,13 +2,15 @@ package com.example.healthmateapp.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,31 +19,67 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.healthmateapp.viewmodel.AssistantViewModel
+import com.example.healthmateapp.viewmodel.Patient
+import com.example.healthmateapp.Screen
+import androidx.navigation.NavController
 
-// -----------------------------------------\-------------------
-// DATA
 // ------------------------------------------------------------
-
+// DATA CLASS
+// ------------------------------------------------------------
 data class AssistantPatient(
-    val id: Int,
-    val name: String,
-    val age: Int,
-    val illness: String
+    val id: String = "",
+    val name: String = "",
+    val age: Int = 0,
+    val illness: String = ""
 )
 
 // ------------------------------------------------------------
 // MAIN SCREEN
 // ------------------------------------------------------------
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreenAssistant(
-    assistantName: String = "Sarah",
-    patients: List<AssistantPatient> = sampleAssistantPatients(),
+    navController: NavController,
+    viewModel: AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    assistantName: String,
     onPatientClick: (AssistantPatient) -> Unit = {},
     onNotificationClick: () -> Unit = {},
     onProfileClick: () -> Unit = {}
 ) {
+
+    // ------------------------------------------------------------
+    // 🔥 ORIGINAL VIEWMODEL FETCH (DISIMPAN, HANYA DI-COMMENT)
+    // ------------------------------------------------------------
+    /*
+    val patientsState = remember { mutableStateOf<List<Patient>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        val observer = androidx.lifecycle.Observer<List<Patient>> { list ->
+            patientsState.value = list
+        }
+        viewModel.patientList.observeForever(observer)
+        viewModel.loadPatients()
+    }
+
+    val assistantPatients = patientsState.value.map { patient ->
+        AssistantPatient(
+            id = patient.id,
+            name = patient.username,
+            age = patient.age,
+            illness = patient.illness
+        )
+    }
+    */
+
+    // ------------------------------------------------------------
+    // 🔥 DUMMY PATIENT LIST (BIAR UI JALAN)
+    // ------------------------------------------------------------
+    val assistantPatients = listOf(
+        AssistantPatient("1", "Michael Hart", 54, "Hypertension"),
+        AssistantPatient("2", "Daniel Ross", 48, "Heart Disease"),
+        AssistantPatient("3", "Laura Kim", 29, "Diabetes Type 2")
+    )
 
     Scaffold(
         topBar = {
@@ -70,14 +108,12 @@ fun HomeScreenAssistant(
                                 text = "Hi, $assistantName",
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                lineHeight = 15.sp
+                                color = Color.Black
                             )
                             Text(
                                 text = "Caregiver",
                                 fontSize = 14.sp,
-                                color = Color.Gray,
-                                lineHeight = 3.sp
+                                color = Color.Gray
                             )
                         }
                     }
@@ -87,8 +123,7 @@ fun HomeScreenAssistant(
                 )
             )
         },
-
-        bottomBar = {
+                bottomBar = {
             AssistantBottomBar(
                 onProfileClick = onProfileClick,
                 onNotificationClick = onNotificationClick
@@ -96,57 +131,53 @@ fun HomeScreenAssistant(
         }
     ) { padding ->
 
-        Column(
+        // ------------------------------------------------------------
+        // LIST CONTENT
+        // ------------------------------------------------------------
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFFF5F5F5))
                 .padding(padding)
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Your Patient List",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 28.dp)
-            )
-
-            patients.forEach { patient ->
-                AssistantPatientCard(patient = patient) {
-                    onPatientClick(patient)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+            item {
+                Text(
+                    text = "Your Patient List",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
+
+            items(assistantPatients) { patient ->
+                AssistantPatientCard(patient = patient) {
+                    // Navigasi ke placeholder screen
+                    navController.navigate(Screen.PatientDetails.route)
+                }
+            }
+
+            // Spacer agar tidak ketutup nav bar
+            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
 
-
 // ------------------------------------------------------------
-// CARD — PATIENT ITEM
+// PATIENT CARD
 // ------------------------------------------------------------
-
 @Composable
-fun AssistantPatientCard(patient: AssistantPatient, onClick: () -> Unit) {
-
+fun AssistantPatientCard(patient: AssistantPatient, onSeeDetailsClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(Color.White),
         elevation = CardDefaults.cardElevation(4.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
+        Column(modifier = Modifier.padding(16.dp)) {
 
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-
-            // FOTO + NAMA
             Row(verticalAlignment = Alignment.CenterVertically) {
-
                 Box(
                     modifier = Modifier
                         .size(35.dp)
@@ -163,199 +194,113 @@ fun AssistantPatientCard(patient: AssistantPatient, onClick: () -> Unit) {
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                Box(
-                    modifier = Modifier
-                        .height(25.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp)),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(
-                        patient.name,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 10.dp),
-                        color = Color.Black
-                    )
-                }
+                Text(
+                    patient.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
 
-                // ===================== UMUR =====================
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 10.dp)
+                        .padding(end = 12.dp)
                 ) {
-
-                    // LABEL DALAM BOX KECIL
-                    Box(
-                        modifier = Modifier
-                            .height(15.dp)
-                            .width(48.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            "Age",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // VALUE BOX
-                    Box(
-                        modifier = Modifier
-                            .height(40.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp)),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            "${patient.age}",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 10.dp)
-                        )
-                    }
+                    Text("Age", fontSize = 12.sp, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("${patient.age}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
 
-                // GARIS PEMISAH
                 Box(
                     modifier = Modifier
                         .width(1.dp)
-                        .height(65.dp)
+                        .height(50.dp)
                         .background(Color.LightGray)
                 )
 
-                // ===================== RIWAYAT PENYAKIT =====================
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 10.dp)
+                        .padding(start = 12.dp)
                 ) {
-
-                    // LABEL DALAM BOX KECIL
-                    Box(
-                        modifier = Modifier
-                            .height(15.dp)
-                            .width(160.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            "History Of Illnes",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // VALUE BOX
-                    Box(
-                        modifier = Modifier
-                            .height(30.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp)),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            patient.illness,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 10.dp)
-                        )
-                    }
+                    Text("History of Illness", fontSize = 12.sp, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(patient.illness, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-
-            Spacer(modifier = Modifier.height(6.dp))
+            
+            Spacer(modifier = Modifier.height(12.dp))
 
             Button(
-                onClick = onClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(26.dp),
+                onClick = onSeeDetailsClick,
+                modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF0066CC),
                     contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(6.dp),
-                contentPadding = PaddingValues(vertical = 0.dp)
+                )
             ) {
-                Text("See Details", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text("See Details", fontSize = 12.sp)
             }
         }
     }
 }
 
 // ------------------------------------------------------------
-// BOTTOM NAV
+// BOTTOM NAVIGATION
 // ------------------------------------------------------------
-
 @Composable
 fun AssistantBottomBar(
     onProfileClick: () -> Unit,
-    onNotificationClick: () -> Unit )
-{
+    onNotificationClick: () -> Unit
+) {
     NavigationBar(
         containerColor = Color.White,
         tonalElevation = 8.dp
-) {
-    NavigationBarItem(
-        selected = true,
-        onClick = { },
-        icon = { Icon(Icons.Default.Home, "Home") },
-        label = { Text("Home", fontSize = 12.sp) },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = Color(0xFF0A84FF),
-            selectedTextColor = Color(0xFF0A84FF),
-            indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
+    ) {
+
+        NavigationBarItem(
+            selected = true,
+            onClick = {},
+            icon = { Icon(Icons.Default.Home, "Home") },
+            label = { Text("Home") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedTextColor = Color(0xFF0A84FF),
+                selectedIconColor = Color(0xFF0A84FF),
+                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
+            )
         )
-    )
+
         NavigationBarItem(
             selected = false,
             onClick = onNotificationClick,
-            icon = { Icon(Icons.Default.Notifications, contentDescription = "Notiffication") },
-            label = { Text("Notiffication", fontSize = 12.sp) }
+            icon = { Icon(Icons.Default.Notifications, "Notification") },
+            label = { Text("Notification") }
         )
 
         NavigationBarItem(
             selected = false,
             onClick = onProfileClick,
-            icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-            label = { Text("Profile", fontSize = 12.sp) }
+            icon = { Icon(Icons.Default.Person, "Profile") },
+            label = { Text("Profile") }
         )
     }
 }
 
-
 // ------------------------------------------------------------
-// SAMPLE DATA
+// PREVIEW
 // ------------------------------------------------------------
-
-fun sampleAssistantPatients(): List<AssistantPatient> = listOf(
-    AssistantPatient(1, "Michael Hart", 72, "Diabetes"),
-    AssistantPatient(2, "Laura Kim", 65, "Hypertension"),
-    AssistantPatient(3, "Daniel Ross", 80, "Heart Disease"),
-)
-
-@Preview(showBackground = true)
-@Composable
-fun HomeScreenAssistantPreview() {
-    HomeScreenAssistant()
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun HomeScreenAssistantPreview() {
+  //  HomeScreenAssistant(
+    //    assistantName = "Preview Assistant"
+    //)
+//}

@@ -9,6 +9,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +49,16 @@ fun RegisterScreen(
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color.White
+
     ) {
+        var roleDropdownExpanded by remember { mutableStateOf(false) }
+
+        val roles = listOf(
+            "patient" to "Patient",
+            "assistant" to "Assistant"
+        )
+
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -224,53 +237,6 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
 
-            // ===== ROLE DROPDOWN =====
-            Text("Register As*", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(8.dp))
-
-            Box {
-                OutlinedTextField(
-                    value = if (selectedRole == "patient") "Patient" else "Assistant",
-                    onValueChange = {},
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = false,
-                    trailingIcon = {
-                        IconButton(onClick = { dropdownExpanded = true }) {
-                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Color(0xFF0A84FF))
-                        }
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledBorderColor = Color.LightGray,
-                        disabledContainerColor = Color(0xFFF5F5F5),
-                        disabledTextColor = Color.Black
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                DropdownMenu(
-                    expanded = dropdownExpanded,
-                    onDismissRequest = { dropdownExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Patient") },
-                        onClick = {
-                            selectedRole = "patient"
-                            dropdownExpanded = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Assistant") },
-                        onClick = {
-                            selectedRole = "assistant"
-                            dropdownExpanded = false
-                        }
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-
             // ===== TERMS =====
             Row(verticalAlignment = Alignment.Top) {
                 Checkbox(
@@ -309,9 +275,6 @@ fun RegisterScreen(
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
-
-            Spacer(Modifier.height(24.dp))
-
 
             // ===== REGISTER BUTTON =====
             Button(

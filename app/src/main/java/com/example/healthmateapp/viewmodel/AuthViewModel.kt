@@ -33,6 +33,9 @@ class AuthViewModel : ViewModel() {
     private val _userRole = MutableStateFlow<String?>(null)
     val userRole: StateFlow<String?> = _userRole
 
+    private val _userName = MutableStateFlow<String?>(null)
+    val userName: StateFlow<String?> = _userName
+
     companion object {
         private const val TAG = "AuthViewModel"
     }
@@ -58,11 +61,17 @@ class AuthViewModel : ViewModel() {
                     .await()
 
                 val role = docSnapshot.getString("role") ?: "patient"
+                val name = docSnapshot.getString("username") ?: auth.currentUser?.displayName
+
                 _userRole.value = role
-                Log.d(TAG, "Loaded user role: $role")
+                _userName.value = name
+
+                Log.d(TAG, "Loaded user role: $role, username: $name")
+
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading user role: ${e.message}", e)
-                _userRole.value = "patient" // Default to patient
+                _userRole.value = "patient"
+                _userName.value = auth.currentUser?.displayName ?: ""
             }
         }
     }
@@ -103,6 +112,7 @@ class AuthViewModel : ViewModel() {
                 )?.await()
 
                 Log.d(TAG, "Display name updated to: $username")
+
 
                 // Create user document in Firestore
                 val userData = hashMapOf(
@@ -279,3 +289,4 @@ class AuthViewModel : ViewModel() {
         _authState.value = AuthState.Idle
     }
 }
+

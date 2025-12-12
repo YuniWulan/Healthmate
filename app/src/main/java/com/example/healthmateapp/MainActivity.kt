@@ -33,6 +33,7 @@ import com.example.healthmateapp.viewmodel.AuthViewModel
 import com.example.healthmateapp.viewmodel.AuthState
 import com.example.healthmateapp.viewmodel.HealthMetricsViewModel
 import com.example.healthmateapp.viewmodel.MedicationViewModel
+import com.example.healthmateapp.Screen.AssistantNotification
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
@@ -180,6 +181,16 @@ sealed class Screen(val route: String) {
     object BloodPressureInput : Screen("blood_pressure_input")
     object BloodGlucoseInput : Screen("blood_glucose_input")
     object CholesterolInput : Screen("cholesterol_input")
+
+    object AssistantHome : Screen("assistant_home")
+    object AssistantNotification : Screen("assistant_notification")
+    object AssistantProfile : Screen("assistant_profile")
+
+    object AccountSettings : Screen("account_settings")
+    object PrivacySecurity : Screen("privacy_security")
+    object HelpSupport : Screen("help_support")
+
+    object PatientDetails : Screen("patient_details")
 }
 
 @Composable
@@ -192,43 +203,40 @@ fun AppNavigation() {
 
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
+    val userRole by authViewModel.userRole.collectAsState()
     val healthMetrics by healthMetricsViewModel.currentMetrics.collectAsState()
     val medications by medicationViewModel.medications.collectAsState()
 
     // Check authentication state and navigate accordingly
-    LaunchedEffect(authState) {
-        when (authState) {
-            is AuthState.Success -> {
-                val user = (authState as AuthState.Success).user
-                if (user != null) {
-                    Toast.makeText(
-                        context,
-                        "Welcome ${user.displayName ?: user.email}!",
-                        Toast.LENGTH_SHORT
-                    ).show()
+    LaunchedEffect(currentUser, userRole, authState) {
 
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
-                    }
-                    authViewModel.resetAuthState()
+        val user = currentUser ?: return@LaunchedEffect
+        val role = userRole ?: return@LaunchedEffect
+
+        // Kalau login sukses
+        if (authState is AuthState.Success) {
+            Toast.makeText(
+                context,
+                "Welcome ${user.displayName ?: user.email}",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        when (role) {
+            "assistant" -> {
+                navController.navigate(Screen.AssistantHome.route) {
+                    popUpTo(Screen.Login.route) { inclusive = true }
                 }
             }
-            is AuthState.Error -> {
-                val message = (authState as AuthState.Error).message
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                authViewModel.resetAuthState()
-            }
-            else -> { /* Do nothing */ }
-        }
-    }
 
-    // Check if user is already logged in at app start
-    LaunchedEffect(currentUser) {
-        if (currentUser != null) {
-            navController.navigate(Screen.Home.route) {
-                popUpTo(Screen.Login.route) { inclusive = true }
+            "patient" -> {
+                navController.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Login.route) { inclusive = true }
+                }
             }
         }
+
+        authViewModel.resetAuthState()
     }
 
     NavHost(
@@ -481,6 +489,107 @@ fun AppNavigation() {
                 isLoading = isLoading
             )
         }
+
+        // ============ HOME ASSISTANT PAGE ============
+        composable(Screen.AssistantHome.route) {
+            val userName by authViewModel.userName.collectAsState()
+
+            HomeScreenAssistant(
+                navController = navController, // <-- kirim navController yang sudah ada
+                assistantName = userName ?: "Caregiver",
+                onNotificationClick = {
+                    navController.navigate(Screen.AssistantNotification.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onProfileClick = {
+                    navController.navigate(Screen.AssistantProfile.route) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+// ============ NOTIFICATION ASSISTANT PAGE ============
+        composable(Screen.AssistantNotification.route) {
+            NotificationAssistantScreen(
+                onHomeClick = {
+                    navController.navigate(Screen.AssistantHome.route) {
+                        popUpTo(Screen.AssistantHome.route)
+                        launchSingleTop = true
+                    }
+                },
+                onNotificationClick = {
+                    // tetap di sini, tidak perlu navigate ulang
+                },
+                onProfileClick = {
+                    navController.navigate(Screen.AssistantProfile.route) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+// ============ PROFILE ASSISTANT PAGE ============
+        composable(Screen.AssistantProfile.route) {
+            AssistantProfileScreen(
+                onHomeClick = {
+                    navController.navigate(Screen.AssistantHome.route) {
+                        popUpTo(Screen.AssistantHome.route) { inclusive = true }
+                    }
+                },
+                onNotificationClick = {
+                    navController.navigate(Screen.AssistantNotification.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onAccountSettingsClick = { navController.navigate(Screen.AccountSettings.route) },
+                onPrivacySecurityClick = { navController.navigate(Screen.PrivacySecurity.route) },
+                onHelpSupportClick = { navController.navigate(Screen.HelpSupport.route) },
+                onLogoutClick = {
+                    authViewModel.logout()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // ============ ACCOUNT SETTINGS SCREEN ==========
+        composable(Screen.AccountSettings.route) {
+            AccountSettingsScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // ============ PRIVACY SECURITY SCREEN ============
+        composable(Screen.PrivacySecurity.route) {
+            PrivacySecurityScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // ============ HELP & SUPPORT SCREEN ============
+        composable(Screen.HelpSupport.route) {
+            HelpSupportScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // ============ PATIENT DETAILS SCREEN  ==========
+        composable(Screen.PatientDetails.route) {
+            PlaceholderScreen(
+                title = "Patient Details",
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
 
         // ============ TERMS SCREEN ============
         composable(Screen.Terms.route) {

@@ -104,8 +104,9 @@ fun NotificationAssistantScreen(
         // BOTTOM NAVIGATION BAR
         // -------------------------------
         NotificationBottomBar(
-            onProfileClick = onProfileClick,
-            onNotificationClick = onNotificationClick
+            onHomeClick = onHomeClick,
+            onNotificationClick = onNotificationClick,
+            onProfileClick = onProfileClick
         )
     }
 }
@@ -170,8 +171,9 @@ fun NotificationAssistantCard(
 // =======================================================
 @Composable
 fun NotificationBottomBar(
-    onProfileClick: () -> Unit = {},
-    onNotificationClick: () -> Unit = {}
+    onHomeClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {}
 ) {
     NavigationBar(
         containerColor = Color.White,
@@ -180,23 +182,23 @@ fun NotificationBottomBar(
         // HOME
         NavigationBarItem(
             selected = false,
-            onClick = {},
+            onClick = onHomeClick,
             icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-            label = { Text("Home", fontSize = 12.sp) },
+            label = { Text("Home", fontSize = 12.sp) }
         )
 
-        // NOTIFICATION
+        // NOTIFICATION (selected)
         NavigationBarItem(
             selected = true,
             onClick = onNotificationClick,
             icon = { Icon(Icons.Default.Notifications, contentDescription = "Notification") },
             label = { Text("Notification", fontSize = 12.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color(0xFF0A84FF),
-            selectedTextColor = Color(0xFF0A84FF),
-            indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
-             )
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF0A84FF),
+                selectedTextColor = Color(0xFF0A84FF),
+                indicatorColor = Color(0xFF0A84FF).copy(alpha = 0.1f)
             )
+        )
 
         // PROFILE
         NavigationBarItem(
