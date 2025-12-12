@@ -184,7 +184,7 @@ fun NotificationCard(item: NotificationItem, onClick: () -> Unit) {
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun PreviewScreen() {
     NotificationScreen()

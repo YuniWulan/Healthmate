@@ -260,7 +260,7 @@ fun NewPasswordScreen(
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun NewPasswordPreview() {
     val navController = rememberNavController()

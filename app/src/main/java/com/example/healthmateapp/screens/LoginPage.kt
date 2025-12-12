@@ -41,14 +41,14 @@ fun LoginScreen(
         ) {
             // Header
             Text(
-                text = "Halo,",
+                text = "Hello,",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
 
             Text(
-                text = "Selamat Datang!",
+                text = "Welcome Back!",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
@@ -57,7 +57,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Satu aplikasi untuk semua kebutuhan sehatmu.\nJadikan gaya hidup lebih sehat dan konsisten.",
+                text = "One app for all your health needs.\nMake a healthier and more consistent lifestyle.",
                 fontSize = 14.sp,
                 color = Color.Gray,
                 lineHeight = 20.sp
@@ -67,7 +67,7 @@ fun LoginScreen(
 
             // Username Field
             Text(
-                text = "Nama Pengguna*",
+                text = "Username*",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.Black
@@ -81,7 +81,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
                     Text(
-                        text = "Masukkan nama pengguna",
+                        text = "Enter your username",
                         color = Color.Gray
                     )
                 },
@@ -99,7 +99,7 @@ fun LoginScreen(
 
             // Password Field
             Text(
-                text = "Kata Sandi*",
+                text = "Password*",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.Black
@@ -113,7 +113,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
                     Text(
-                        text = "Masukkan kata sandi",
+                        text = "Enter your password",
                         color = Color.Gray
                     )
                 },
@@ -139,13 +139,13 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Forgot Password Link
+            // Forgot Password
             TextButton(
                 onClick = onForgotPasswordClick,
                 modifier = Modifier.align(Alignment.End)
             ) {
                 Text(
-                    text = "Lupa Kata Sandi?",
+                    text = "Forgot Password?",
                     color = Color(0xFFFF3B30),
                     fontSize = 14.sp
                 )
@@ -165,7 +165,7 @@ fun LoginScreen(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Masuk",
+                    text = "Login",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White
@@ -181,7 +181,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Tidak punya akun? ",
+                    text = "Don’t have an account? ",
                     color = Color.Gray,
                     fontSize = 14.sp
                 )
@@ -190,7 +190,7 @@ fun LoginScreen(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = "Daftar",
+                        text = "Register",
                         color = Color(0xFF0A84FF),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold
