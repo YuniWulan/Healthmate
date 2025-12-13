@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.userProfileChangeRequest
 
 sealed class AuthState {
     object Idle : AuthState()
@@ -63,6 +65,105 @@ class AuthViewModel : ViewModel() {
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading user role: ${e.message}", e)
                 _userRole.value = "patient" // Default to patient
+            }
+        }
+    }
+
+    // Update user profile (username and email)
+    fun updateProfile(newUsername: String, newEmail: String, currentPassword: String) {
+        val user = auth.currentUser
+
+        if (user == null) {
+            _authState.value = AuthState.Error("No user logged in")
+            return
+        }
+
+        if (newUsername.isBlank() || newEmail.isBlank() || currentPassword.isBlank()) {
+            _authState.value = AuthState.Error("All fields are required")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                _authState.value = AuthState.Loading
+                Log.d(TAG, "Starting profile update for user: ${user.uid}")
+
+                // Re-authenticate user before making sensitive changes
+                val credential = EmailAuthProvider.getCredential(user.email!!, currentPassword)
+                user.reauthenticate(credential).await()
+                Log.d(TAG, "User re-authenticated successfully")
+
+                // Update email if changed
+                if (newEmail != user.email) {
+                    user.updateEmail(newEmail).await()
+                    Log.d(TAG, "Email updated to: $newEmail")
+                }
+
+                // Update display name if changed
+                if (newUsername != user.displayName) {
+                    val profileUpdates = userProfileChangeRequest {
+                        displayName = newUsername
+                    }
+                    user.updateProfile(profileUpdates).await()
+                    Log.d(TAG, "Display name updated to: $newUsername")
+                }
+
+                // Update Firestore User collection
+                val updates = hashMapOf<String, Any>(
+                    "username" to newUsername,
+                    "email" to newEmail,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+
+                firestore.collection("User")
+                    .document(user.uid)
+                    .update(updates)
+                    .await()
+
+                Log.d(TAG, "Firestore User document updated")
+
+                // Update patient or assistant subcollection name
+                val role = _userRole.value ?: "patient"
+                if (role == "patient") {
+                    firestore.collection("User")
+                        .document(user.uid)
+                        .collection("patient")
+                        .document(user.uid)
+                        .update(mapOf("name" to newUsername))
+                        .await()
+                    Log.d(TAG, "Patient profile name updated")
+                } else if (role == "assistant") {
+                    firestore.collection("User")
+                        .document(user.uid)
+                        .collection("assistant")
+                        .document(user.uid)
+                        .update(mapOf("name" to newUsername))
+                        .await()
+                    Log.d(TAG, "Assistant profile name updated")
+                }
+
+                // Refresh current user
+                auth.currentUser?.reload()?.await()
+                _currentUser.value = auth.currentUser
+                _authState.value = AuthState.Success(auth.currentUser)
+
+                Log.d(TAG, "✅ Profile update completed successfully!")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Profile update error: ${e.message}", e)
+                val errorMessage = when {
+                    e.message?.contains("password is invalid") == true ||
+                            e.message?.contains("INVALID_LOGIN_CREDENTIALS") == true ->
+                        "Current password is incorrect"
+                    e.message?.contains("email address is already") == true ->
+                        "This email is already in use"
+                    e.message?.contains("requires recent authentication") == true ->
+                        "Please log in again to update your profile"
+                    e.message?.contains("network") == true ->
+                        "Network error. Please check your connection"
+                    else -> e.message ?: "Failed to update profile"
+                }
+                _authState.value = AuthState.Error(errorMessage)
             }
         }
     }
@@ -263,7 +364,7 @@ class AuthViewModel : ViewModel() {
             try {
                 _authState.value = AuthState.Loading
                 auth.sendPasswordResetEmail(email).await()
-                _authState.value = AuthState.Error("Password reset email sent! Check your inbox.")
+                _authState.value = AuthState.Success(null)
                 Log.d(TAG, "Password reset email sent to: $email")
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending reset email: ${e.message}", e)

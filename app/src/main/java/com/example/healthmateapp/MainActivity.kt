@@ -167,7 +167,6 @@ sealed class Screen(val route: String) {
     object Notification : Screen("notification")
     object AddMedication : Screen("add_medication")
     object EditProfile : Screen("edit_profile")
-    object ChangePassword : Screen("change_password")
     object HealthReport : Screen("health_report")
     object ForgotPassword : Screen("forgot_password")
     object Terms : Screen("terms")
@@ -221,14 +220,36 @@ fun AppNavigation() {
             is AuthState.Success -> {
                 val user = (authState as AuthState.Success).user
                 if (user != null) {
-                    Toast.makeText(
-                        context,
-                        "Welcome ${user.displayName ?: user.email}!",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    val currentRoute = navController.currentBackStackEntry?.destination?.route
 
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                    // Handle different success scenarios based on current route
+                    when (currentRoute) {
+                        Screen.Login.route, Screen.Register.route -> {
+                            Toast.makeText(
+                                context,
+                                "Welcome ${user.displayName ?: user.email}!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Login.route) { inclusive = true }
+                            }
+                        }
+                        Screen.EditProfile.route -> {
+                            Toast.makeText(
+                                context,
+                                "Profile updated successfully!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            navController.popBackStack()
+                        }
+                        Screen.ForgotPassword.route -> {
+                            Toast.makeText(
+                                context,
+                                "Password reset email sent! Check your inbox.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            navController.popBackStack()
+                        }
                     }
                     authViewModel.resetAuthState()
                 }
@@ -437,9 +458,6 @@ fun AppNavigation() {
                 onEditProfileClick = {
                     navController.navigate(Screen.EditProfile.route)
                 },
-                onChangePasswordClick = {
-                    navController.navigate(Screen.ChangePassword.route)
-                },
                 onHealthReportClick = {
                     navController.navigate(Screen.HealthReport.route)
                 },
@@ -473,22 +491,23 @@ fun AppNavigation() {
         }
 
         composable(Screen.EditProfile.route) {
-            PlaceholderScreen(
-                title = "Edit Profile",
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable(Screen.ChangePassword.route) {
-            PlaceholderScreen(
-                title = "Change Password",
-                onBackClick = { navController.popBackStack() }
+            val isLoading = authState is AuthState.Loading
+            EditProfileScreen(
+                currentUserName = currentUser?.displayName ?: "",
+                currentEmail = currentUser?.email ?: "",
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onSaveClick = { newUsername, newEmail, currentPassword ->
+                    authViewModel.updateProfile(newUsername, newEmail, currentPassword)
+                },
+                isLoading = isLoading
             )
         }
 
         composable(Screen.HealthReport.route) {
             PlaceholderScreen(
-                title = "Health Report",
+                title = "Add Caregiver",
                 onBackClick = { navController.popBackStack() }
             )
         }

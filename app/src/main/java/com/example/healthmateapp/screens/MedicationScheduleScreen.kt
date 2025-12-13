@@ -38,6 +38,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.Size
 import com.example.healthmateapp.screens.components.MonthStrip
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 // ------------------ MODEL ------------------
 data class Medication(
@@ -411,6 +413,8 @@ fun MedicationScheduleScreen(
     var selectedMedication by remember { mutableStateOf<Medication?>(null) }
     var medicationToDelete by remember { mutableStateOf<Medication?>(null) }
 
+    val context = LocalContext.current
+
     // Update week start when focusedDate or selectedDate changes
     val weekStart by remember(focusedDate, selectedDate) {
         derivedStateOf {
@@ -438,7 +442,27 @@ fun MedicationScheduleScreen(
         bottomBar = {
             BottomNavigationBar(
                 currentRoute = "reminder",
-                onNavigate = { route -> navController?.navigate(route) }
+                onNavigate = { route ->
+                    when (route) {
+                        "home" -> {
+                            navController?.navigate("home") {
+                                popUpTo("home") { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                        "reminder" -> {
+                            // Already on reminder page, do nothing
+                        }
+                        "chat" -> {
+                            Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()
+                        }
+                        "account" -> {
+                            navController?.navigate("profile") {
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                }
             )
         },
         floatingActionButton = {

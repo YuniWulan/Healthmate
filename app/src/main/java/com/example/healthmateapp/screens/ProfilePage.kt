@@ -34,21 +34,6 @@ fun ProfileScreen(
     onBottomNavClick: (String) -> Unit = {}
 ) {
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Profile",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
-                )
-            )
-        },
         bottomBar = {
             BottomNavigationBar(
                 currentRoute = "account",
@@ -127,7 +112,7 @@ fun ProfileScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Ubah Profil",
+                            text = "Edit Profile",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -150,22 +135,9 @@ fun ProfileScreen(
                     modifier = Modifier.padding(vertical = 8.dp)
                 ) {
                     ProfileMenuItem(
-                        icon = Icons.Default.Lock,
-                        iconTint = Color(0xFF0A84FF),
-                        title = "Ubah Kata Sandi",
-                        onClick = onChangePasswordClick
-                    )
-
-                    Divider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = Color(0xFFE0E0E0),
-                        thickness = 1.dp
-                    )
-
-                    ProfileMenuItem(
                         icon = Icons.Default.Description,
                         iconTint = Color(0xFF0A84FF),
-                        title = "Health Report",
+                        title = "Add Caregiver",
                         onClick = onHealthReportClick
                     )
 
@@ -178,7 +150,7 @@ fun ProfileScreen(
                     ProfileMenuItem(
                         icon = Icons.Default.Info,
                         iconTint = Color(0xFF0A84FF),
-                        title = "Syarat & Ketentuan",
+                        title = "Terms and Conditions",
                         onClick = onTermsClick
                     )
 

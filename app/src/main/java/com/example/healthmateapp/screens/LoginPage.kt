@@ -67,7 +67,7 @@ fun LoginScreen(
 
             // Username Field
             Text(
-                text = "Username*",
+                text = "Email*",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.Black
@@ -81,7 +81,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
                     Text(
-                        text = "Enter your username",
+                        text = "Enter your email",
                         color = Color.Gray
                     )
                 },
