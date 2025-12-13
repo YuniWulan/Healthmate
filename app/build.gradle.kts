@@ -41,6 +41,9 @@ android {
 }
 
 dependencies {
+
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
     // Firebase BOM (manages all Firebase versions)
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")

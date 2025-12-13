@@ -1,7 +1,9 @@
 package com.example.healthmateapp.screens
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +25,7 @@ import androidx.navigation.NavController
 import com.example.healthmateapp.components.BottomNavigationBar
 import com.example.healthmateapp.screens.components.MonthGrid
 import com.example.healthmateapp.screens.components.WeekStrip
+import com.example.healthmateapp.screens.medication.MedicationConfirmationDialog
 import com.example.healthmateapp.ui.theme.BgGray
 import com.example.healthmateapp.ui.theme.BlueMain
 import com.example.healthmateapp.ui.theme.GrayLight
@@ -43,7 +46,16 @@ data class Medication(
     val note: String = "",
     val dosage: String = "",
     val time: String,
-    var taken: Boolean = false
+    var taken: Boolean = false,
+    val takenDetails: TakenDetails? = null
+)
+
+data class TakenDetails(
+    val day: String,
+    val time: String,
+    val date: String,
+    val notes: String,
+    val photoUri: Uri?
 )
 
 // ------------------ HELPERS ------------------
@@ -65,7 +77,9 @@ fun TimelineItem(
     time: String,
     totalItems: Int,
     medications: List<Medication>,
-    onToggleTaken: (Medication, Boolean) -> Unit
+    onToggleTaken: (Medication) -> Unit,
+    onEdit: (Medication) -> Unit,
+    onDelete: (Medication) -> Unit
 ) {
     val dotSize = 14.dp
     val dotToTextGap = 12.dp
@@ -127,7 +141,9 @@ fun TimelineItem(
 
                 MedicationCard(
                     med = med,
-                    onToggleTaken = { taken -> onToggleTaken(med, taken) },
+                    onToggleTaken = { onToggleTaken(med) },
+                    onEdit = { onEdit(med) },
+                    onDelete = { onDelete(med) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -142,12 +158,18 @@ fun TimelineItem(
 @Composable
 fun MedicationCard(
     med: Medication,
-    onToggleTaken: (Boolean) -> Unit,
+    onToggleTaken: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = if (med.taken) Color(0xFFE8F5E9) else Color.White
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(14.dp)
     ) {
@@ -155,54 +177,186 @@ fun MedicationCard(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(GrayLight),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.CalendarToday,
-                    contentDescription = null,
-                    tint = Color.Gray,
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-
-            Spacer(Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                Text(med.name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text(
+                    med.name,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = if (med.taken) Color(0xFF4CAF50) else Color.Black
+                )
                 Spacer(Modifier.height(4.dp))
-                Text("${med.note} • ${med.dosage}", fontSize = 13.sp, color = Color.Gray)
-            }
+                Text(
+                    "${med.note} • ${med.dosage}",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
 
-            IconToggleButton(
-                checked = med.taken,
-                onCheckedChange = onToggleTaken
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (med.taken) BlueMain else Color(0xFFE4E4E4)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (med.taken) {
+                // Show taken details if medication was taken
+                if (med.taken && med.takenDetails != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.Check,
-                            null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "Taken at ${med.takenDetails.time}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Show if photo proof was added
+                    if (med.takenDetails.photoUri != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                tint = BlueMain,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "Photo attached",
+                                fontSize = 11.sp,
+                                color = BlueMain,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Action buttons
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Toggle button (only show if not taken)
+                if (!med.taken) {
+                    IconButton(
+                        onClick = onToggleTaken,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(Color.Transparent, RoundedCornerShape(6.dp))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .border(
+                                    width = 2.dp,
+                                    color = Color.Gray.copy(alpha = 0.6f),
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Completed",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(4.dp))
+
+                // Menu button
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = Color.Gray
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = null,
+                                        tint = BlueMain,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Edit")
+                                }
+                            },
+                            onClick = {
+                                showMenu = false
+                                onEdit()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = Color(0xFFD32F2F),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Delete", color = Color(0xFFD32F2F))
+                                }
+                            },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            }
                         )
                     }
                 }
             }
         }
     }
+}
 
-    // Month Picker Dialog
+@Composable
+fun DeleteConfirmationDialog(
+    medicationName: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.Warning,
+                contentDescription = null,
+                tint = Color(0xFFD32F2F),
+                modifier = Modifier.size(32.dp)
+            )
+        },
+        title = { Text("Delete Medication?") },
+        text = {
+            Text("Are you sure you want to delete \"$medicationName\"? This action cannot be undone.")
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -245,13 +399,17 @@ fun MedicationScheduleScreen(
     navController: NavController? = null,
     modifier: Modifier = Modifier,
     medications: Map<LocalDate, List<Medication>> = emptyMap(),
-    onToggleTaken: (LocalDate, String, Boolean) -> Unit = { _, _, _ -> },
+    onToggleTaken: (LocalDate, String, Boolean) -> Unit,
+    onEditMedication: (LocalDate, String) -> Unit = { _, _ -> },
+    onDeleteMedication: (LocalDate, String) -> Unit = { _, _ -> },
     onAddMedicationClick: () -> Unit = {}
 ) {
     var focusedDate by remember { mutableStateOf(LocalDate.now()) }
     var viewWeekly by remember { mutableStateOf(true) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showMonthPicker by remember { mutableStateOf(false) }
+    var selectedMedication by remember { mutableStateOf<Medication?>(null) }
+    var medicationToDelete by remember { mutableStateOf<Medication?>(null) }
 
     // Update week start when focusedDate or selectedDate changes
     val weekStart by remember(focusedDate, selectedDate) {
@@ -511,19 +669,67 @@ fun MedicationScheduleScreen(
                             time = time,
                             totalItems = meds.size,
                             medications = meds,
-                            onToggleTaken = { med, taken ->
-                                onToggleTaken(selectedDate, med.id, taken)
+                            onToggleTaken = { med ->
+                                // Only show dialog if medication is not yet taken
+                                if (!med.taken) {
+                                    selectedMedication = med
+                                }
+                            },
+                            onEdit = { med ->
+                                onEditMedication(selectedDate, med.id)
+                            },
+                            onDelete = { med ->
+                                medicationToDelete = med
                             }
                         )
                     }
                 }
             }
         }
+
+        // Show confirmation dialog when medication is selected
+        selectedMedication?.let { medication ->
+            MedicationConfirmationDialog(
+                medicationName = medication.name,
+                medicationDosage = medication.dosage,
+                medicationNote = medication.note,
+                onDismiss = { selectedMedication = null },
+                onConfirm = { day, time, date, notes, photoUri ->
+                    val takenDetails = TakenDetails(
+                        day = day,
+                        time = time,
+                        date = date,
+                        notes = notes,
+                        photoUri = photoUri
+                    )
+                    onToggleTaken(selectedDate, medication.id, true)
+                    selectedMedication = null
+                }
+            )
+        }
+
+        // Show delete confirmation dialog
+        medicationToDelete?.let { medication ->
+            DeleteConfirmationDialog(
+                medicationName = medication.name,
+                onDismiss = { medicationToDelete = null },
+                onConfirm = {
+                    onDeleteMedication(selectedDate, medication.id)
+                    medicationToDelete = null
+                }
+            )
+        }
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun MedicationScheduleScreenPreview() {
-    MedicationScheduleScreen()
+fun MedicationSchedulePreview() {
+    MedicationScheduleScreen(
+        medications = emptyMap(),
+        onToggleTaken = { _, _, _ -> },
+        onEditMedication = { _, _ -> },
+        onDeleteMedication = { _, _ -> },
+        onAddMedicationClick = {}
+    )
 }
