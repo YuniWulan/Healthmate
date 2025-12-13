@@ -5,6 +5,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,7 +51,16 @@ fun RegisterScreen(
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color.White
+
     ) {
+        var roleDropdownExpanded by remember { mutableStateOf(false) }
+
+        val roles = listOf(
+            "patient" to "Patient",
+            "assistant" to "Assistant"
+        )
+
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -250,6 +266,9 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+
+            // ===== TERMS =====
+            Row(verticalAlignment = Alignment.Top) {
             // Terms and Conditions Checkbox
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -317,6 +336,7 @@ fun RegisterScreen(
                 )
             }
 
+            // ===== REGISTER BUTTON =====
             Spacer(modifier = Modifier.height(24.dp))
 
             // Register Button

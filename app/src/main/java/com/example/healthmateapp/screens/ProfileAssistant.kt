@@ -9,26 +9,38 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.healthmateapp.viewmodel.AuthViewModel
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantProfileScreen(
-    assistantName: String = "Sarah",
-    assistantRole: String = "Caregiver",
+    authViewModel: AuthViewModel = viewModel(),
+    onHomeClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
-    onHomeClick: () -> Unit = {}
+    onLogoutClick: () -> Unit = {},
+    onAccountSettingsClick: () -> Unit = {},
+    onPrivacySecurityClick: () -> Unit = {},
+    onHelpSupportClick: () -> Unit = {}
 ) {
 
-    Scaffold(
+    val userName = authViewModel.userName.collectAsState().value ?: ""
+    val userRole = "Caregiver"
+    //val userRole = authViewModel.userRole.collectAsState().value ?: "Caregiver"
 
+
+    Scaffold(
         bottomBar = {
             NavigationBar(
                 containerColor = Color.White,
@@ -40,14 +52,12 @@ fun AssistantProfileScreen(
                     icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
                     label = { Text("Home", fontSize = 12.sp) }
                 )
-
                 NavigationBarItem(
                     selected = false,
                     onClick = onNotificationClick,
                     icon = { Icon(Icons.Default.Notifications, contentDescription = "Notification") },
                     label = { Text("Notification", fontSize = 12.sp) }
                 )
-
                 NavigationBarItem(
                     selected = true,
                     onClick = { },
@@ -60,34 +70,35 @@ fun AssistantProfileScreen(
                     )
                 )
             }
-        }
+        },
+        containerColor = Color(0xFFF5F5F5)
     ) { padding ->
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF5F5F5))
                 .padding(padding)
-                .padding(20.dp)
+                .padding(16.dp)
         ) {
 
-            // ===================== PROFILE CARD =====================
+            // ================= HEADER PROFILE MIRIP PATIENT =================
             Card(
-                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(Color.White),
-                elevation = CardDefaults.cardElevation(4.dp),
-                modifier = Modifier.fillMaxWidth()
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-
-                Row(
+                Column(
                     modifier = Modifier
-                        .padding(18.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+
                     Box(
                         modifier = Modifier
-                            .size(70.dp)
+                            .size(100.dp)
                             .clip(CircleShape)
                             .background(Color(0xFFE0E0E0)),
                         contentAlignment = Alignment.Center
@@ -96,78 +107,136 @@ fun AssistantProfileScreen(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,
                             tint = Color.Gray,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(55.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    Column {
-                        Text(
-                            text = assistantName,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = assistantRole,
-                            fontSize = 14.sp,
-                            color = Color.Gray
-                        )
-                    }
+                    Text(
+                        text = userName,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = userRole, // BUKAN assistant → caregiver
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // ===================== MENU LIST =====================
-            ProfileMenuItem("Account Settings", Icons.Default.Settings)
-            ProfileMenuItem("Privacy & Security", Icons.Default.Lock)
-            ProfileMenuItem("Help & Support", Icons.Default.Help)
-            ProfileMenuItem(
-                title = "Logout",
-                icon = Icons.Default.Logout,
-                tint = Color.Red,
-                textColor = Color.Red
-            )
+            // ================= MENU SECTION =================
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+
+                    MenuItem(
+                        icon = Icons.Default.Settings,
+                        title = "Account Settings",
+                        onClick = onAccountSettingsClick
+                    )
+
+                    Divider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = Color(0xFFE0E0E0)
+                    )
+
+                    MenuItem(
+                        icon = Icons.Default.Lock,
+                        title = "Privacy & Security",
+                        onClick = onPrivacySecurityClick
+                    )
+
+                    Divider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = Color(0xFFE0E0E0)
+                    )
+
+                    MenuItem(
+                        icon = Icons.Default.Help,
+                        title = "Help & Support",
+                        onClick = onHelpSupportClick
+                    )
+
+                    Divider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = Color(0xFFE0E0E0)
+                    )
+
+                    // LOGOUT → memanggil fungsi logout dari AuthViewModel
+                    MenuItem(
+                        icon = Icons.Default.ExitToApp,
+                        title = "Log Out",
+                        iconTint = Color(0xFFFF3B30),
+                        titleColor = Color(0xFFFF3B30),
+                        onClick = {
+                            authViewModel.logout()
+                            onLogoutClick()
+
+                        }
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun ProfileMenuItem(
+fun MenuItem(
+    icon: ImageVector,
     title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color = Color.Black,
-    textColor: Color = Color.Black
+    iconTint: Color = Color(0xFF0A84FF),
+    titleColor: Color = Color.Black,
+    onClick: () -> Unit = {}
 ) {
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 14.dp)
-            .clickable { },
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = title,
-            tint = tint,
-            modifier = Modifier.size(26.dp)
-        )
 
-        Spacer(modifier = Modifier.width(18.dp))
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(iconTint.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
 
         Text(
             text = title,
             fontSize = 16.sp,
-            color = textColor,
-            fontWeight = FontWeight.Medium
+            color = titleColor,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
         )
 
-        Spacer(modifier = Modifier.weight(1f))
-
         Icon(
-            imageVector = Icons.Default.ChevronRight,
+            Icons.Default.ChevronRight,
             contentDescription = null,
             tint = Color.Gray
         )
@@ -176,6 +245,6 @@ fun ProfileMenuItem(
 
 @Preview(showBackground = true)
 @Composable
-fun ProfileAssistantPreview() {
+fun PreviewAssistantProfile() {
     AssistantProfileScreen()
 }
