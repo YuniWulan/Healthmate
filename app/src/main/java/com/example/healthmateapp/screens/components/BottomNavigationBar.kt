@@ -43,7 +43,7 @@ fun BottomNavigationBar(
             selected = currentRoute == "chat",
             onClick = { onNavigate("chat") },
             icon = { Icon(Icons.Default.Chat, "Chat") },
-            label = { Text("Chat", fontSize = 12.sp) },
+            label = { Text("AI Chat", fontSize = 12.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF0A84FF),
                 selectedTextColor = Color(0xFF0A84FF),

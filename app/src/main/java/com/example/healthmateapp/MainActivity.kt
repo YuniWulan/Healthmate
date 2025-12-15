@@ -164,6 +164,7 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Profile : Screen("profile")
     object Reminder : Screen("reminder")
+    object Chat     : Screen("Chat")
     object Notification : Screen("notification")
     object AddMedication : Screen("add_medication")
     object EditProfile : Screen("edit_profile")
@@ -348,7 +349,7 @@ fun AppNavigation() {
                             navController.navigate(Screen.Reminder.route)
                         }
                         "chat" -> {
-                            Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()
+                            navController.navigate(Screen.Chat.route)
                         }
                         "account" -> {
                             navController.navigate(Screen.Profile.route)
@@ -394,6 +395,12 @@ fun AppNavigation() {
                 onAddMedicationClick = {
                     navController.navigate(Screen.AddMedication.route)
                 }
+            )
+        }
+
+        composable(Screen.Chat.route){
+            ChatScreen(
+                navController = navController,
             )
         }
 
@@ -464,7 +471,7 @@ fun AppNavigation() {
                             navController.navigate(Screen.Reminder.route)
                         }
                         "chat" -> {
-                            Toast.makeText(context, "Chat feature coming soon", Toast.LENGTH_SHORT).show()
+                            navController.navigate(Screen.Chat.route)
                         }
                         "account" -> { }
                     }
