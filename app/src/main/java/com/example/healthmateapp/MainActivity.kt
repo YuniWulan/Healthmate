@@ -29,18 +29,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.healthmateapp.screens.*
-import com.example.healthmateapp.viewmodel.AuthViewModel
 import com.example.healthmateapp.viewmodel.AuthState
+import com.example.healthmateapp.viewmodel.AuthViewModel
 import com.example.healthmateapp.viewmodel.HealthMetricsViewModel
 import com.example.healthmateapp.viewmodel.MedicationViewModel
-import com.example.healthmateapp.Screen.AssistantNotification
 import java.time.LocalDate
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
 
-    private var showAlarmPermissionDialog by mutableStateOf(false)
+    private var showAlarmPermissionDialog = false
 
-    // Permission launcher for notifications (Android 13+)
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -59,7 +58,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request necessary permissions
         requestPermissions()
 
         setContent {
@@ -68,31 +66,6 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    if (showAlarmPermissionDialog) {
-                        AlarmPermissionDialog(
-                            onDismiss = {
-                                showAlarmPermissionDialog = false
-                            },
-                            onGrantClick = {
-                                showAlarmPermissionDialog = false
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    try {
-                                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                            data = Uri.parse("package:$packageName")
-                                        }
-                                        startActivity(intent)
-                                    } catch (e: Exception) {
-                                        Toast.makeText(
-                                            this,
-                                            "Please enable exact alarm permission in app settings",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                }
-                            }
-                        )
-                    }
-
                     AppNavigation()
                 }
             }
@@ -125,37 +98,23 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        // Global reference to MedicationViewModel
         var medicationViewModel: MedicationViewModel? = null
     }
 }
 
 @Composable
-fun AlarmPermissionDialog(
-    onDismiss: () -> Unit,
-    onGrantClick: () -> Unit
-) {
+fun AlarmPermissionDialog(onDismiss: () -> Unit, onGrantClick: () -> Unit) {
     AlertDialog(
         onDismissRequest = { },
-        title = {
-            Text("Exact Alarm Permission Required")
-        },
+        title = { Text("Exact Alarm Permission Required") },
         text = {
             Text(
                 "HealthMate needs permission to schedule exact alarms to remind you about your medications at the right time. " +
                         "Please grant this permission on the next screen."
             )
         },
-        confirmButton = {
-            TextButton(onClick = onGrantClick) {
-                Text("Grant Permission")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Later")
-            }
-        }
+        confirmButton = { TextButton(onClick = onGrantClick) { Text("Grant Permission") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Later") } }
     )
 }
 
@@ -196,10 +155,7 @@ fun AppNavigation() {
     val healthMetricsViewModel: HealthMetricsViewModel = viewModel()
     val medicationViewModel: MedicationViewModel = viewModel()
 
-    // Store ViewModel reference globally
-    LaunchedEffect(medicationViewModel) {
-        MainActivity.medicationViewModel = medicationViewModel
-    }
+    LaunchedEffect(medicationViewModel) { MainActivity.medicationViewModel = medicationViewModel }
 
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
@@ -207,80 +163,31 @@ fun AppNavigation() {
     val healthMetrics by healthMetricsViewModel.currentMetrics.collectAsState()
     val medications by medicationViewModel.medications.collectAsState()
 
-    // Check authentication state and navigate accordingly
+    // Handle auth navigation
     LaunchedEffect(currentUser, userRole, authState) {
-    // Observe ViewModel states for feedback
-    val isLoading by medicationViewModel.isLoading.collectAsState()
+        if (authState is AuthState.Success && currentUser != null && userRole != null) {
+            when (userRole) {
+                "assistant" -> navController.navigate(Screen.AssistantHome.route) {
+                    popUpTo(Screen.Login.route) { inclusive = true }
+                }
+                "patient" -> navController.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Login.route) { inclusive = true }
+                }
+            }
+        }
+    }
+
+
+    // Observe medicationViewModel for errors/success
     val error by medicationViewModel.error.collectAsState()
     val success by medicationViewModel.operationSuccess.collectAsState()
 
-    // Show error toast
     LaunchedEffect(error) {
-        error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            medicationViewModel.clearError()
-        }
+        error?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show(); medicationViewModel.clearError() }
     }
 
-    // Show success toast
     LaunchedEffect(success) {
-        success?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            medicationViewModel.clearSuccess()
-        }
-    }
-
-    LaunchedEffect(authState) {
-        when (authState) {
-            is AuthState.Success -> {
-                val user = (authState as AuthState.Success).user
-                if (user != null) {
-                    Toast.makeText(
-                        context,
-                        "Welcome ${user.displayName ?: user.email}!",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-        val user = currentUser ?: return@LaunchedEffect
-        val role = userRole ?: return@LaunchedEffect
-
-        // Kalau login sukses
-        if (authState is AuthState.Success) {
-            Toast.makeText(
-                context,
-                "Welcome ${user.displayName ?: user.email}",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
-
-        when (role) {
-            "assistant" -> {
-                navController.navigate(Screen.AssistantHome.route) {
-                    popUpTo(Screen.Login.route) { inclusive = true }
-                }
-            }
-
-            "patient" -> {
-                navController.navigate(Screen.Home.route) {
-                    popUpTo(Screen.Login.route) { inclusive = true }
-                }
-            is AuthState.Error -> {
-                val message = (authState as AuthState.Error).message
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                authViewModel.resetAuthState()
-            }
-            else -> { }
-        }
-    }
-
-    LaunchedEffect(currentUser) {
-        if (currentUser != null) {
-            navController.navigate(Screen.Home.route) {
-                popUpTo(Screen.Login.route) { inclusive = true }
-            }
-        }
-
-        authViewModel.resetAuthState()
+        success?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); medicationViewModel.clearSuccess() }
     }
 
     NavHost(
@@ -582,6 +489,7 @@ fun AppNavigation() {
 // ============ PROFILE ASSISTANT PAGE ============
         composable(Screen.AssistantProfile.route) {
             AssistantProfileScreen(
+                userName = currentUser?.displayName ?: "User",
                 onHomeClick = {
                     navController.navigate(Screen.AssistantHome.route) {
                         popUpTo(Screen.AssistantHome.route) { inclusive = true }
@@ -741,7 +649,7 @@ fun ForgotPasswordScreen(onBackClick: () -> Unit, onResetClick: (String) -> Unit
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Lupa Kata Sandi") },
+                title = { Text("Forgot Password") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, "Back")
@@ -759,7 +667,7 @@ fun ForgotPasswordScreen(onBackClick: () -> Unit, onResetClick: (String) -> Unit
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Masukkan email Anda untuk menerima link reset kata sandi",
+                text = "Enter your email to receive a password reset link",
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
@@ -780,7 +688,7 @@ fun ForgotPasswordScreen(onBackClick: () -> Unit, onResetClick: (String) -> Unit
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Text("Kirim Link Reset")
+                    Text("Send Reset Link")
                 }
             }
         }
@@ -793,7 +701,7 @@ fun TermsScreen(onBackClick: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Syarat Layanan") },
+                title = { Text("Terms of Service") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, "Back")
@@ -803,23 +711,23 @@ fun TermsScreen(onBackClick: () -> Unit) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
-            Text(text = "Syarat Layanan", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 16.dp))
+            Text(text = "Terms of Service", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 16.dp))
             Text(
                 text = """
-                    1. Penerimaan Syarat
-                    Dengan menggunakan aplikasi HealthMate, Anda menyetujui syarat dan ketentuan ini.
-                    
-                    2. Penggunaan Layanan
-                    Anda setuju untuk menggunakan layanan ini hanya untuk tujuan yang sah dan sesuai hukum.
-                    
-                    3. Akun Pengguna
-                    Anda bertanggung jawab untuk menjaga kerahasiaan akun dan kata sandi Anda.
-                    
-                    4. Konten Pengguna
-                    Anda mempertahankan hak atas konten yang Anda unggah ke aplikasi.
-                    
-                    5. Perubahan Layanan
-                    Kami berhak mengubah atau menghentikan layanan kapan saja.
+                    1. Acceptance of Terms
+                    By using HealthMate, you agree to these terms and conditions.
+
+                    2. Use of Service
+                    You agree to use the service only for lawful purposes.
+
+                    3. User Account
+                    You are responsible for keeping your account and password secure.
+
+                    4. User Content
+                    You retain rights over any content you upload.
+
+                    5. Service Changes
+                    We reserve the right to modify or discontinue the service at any time.
                 """.trimIndent(),
                 style = MaterialTheme.typography.bodyMedium
             )
@@ -833,7 +741,7 @@ fun PrivacyScreen(onBackClick: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Kebijakan Privasi") },
+                title = { Text("Privacy Policy") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, "Back")
@@ -843,26 +751,26 @@ fun PrivacyScreen(onBackClick: () -> Unit) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
-            Text(text = "Kebijakan Privasi", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 16.dp))
+            Text(text = "Privacy Policy", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 16.dp))
             Text(
                 text = """
-                    1. Informasi yang Kami Kumpulkan
-                    Kami mengumpulkan informasi yang Anda berikan saat mendaftar dan menggunakan aplikasi.
-                    
-                    2. Penggunaan Informasi
-                    Informasi Anda digunakan untuk menyediakan dan meningkatkan layanan kami.
-                    
-                    3. Keamanan Data
-                    Kami menggunakan langkah-langkah keamanan standar industri untuk melindungi data Anda.
-                    
-                    4. Berbagi Informasi
-                    Kami tidak menjual atau membagikan informasi pribadi Anda kepada pihak ketiga.
-                    
-                    5. Hak Anda
-                    Anda memiliki hak untuk mengakses, memperbarui, atau menghapus informasi pribadi Anda.
-                    
+                    1. Information We Collect
+                    We collect the information you provide when registering and using the app.
+
+                    2. Use of Information
+                    Your information is used to provide and improve our services.
+
+                    3. Data Security
+                    We use industry-standard security measures to protect your data.
+
+                    4. Sharing Information
+                    We do not sell or share your personal information with third parties.
+
+                    5. Your Rights
+                    You have the right to access, update, or delete your personal information.
+
                     6. Cookies
-                    Kami menggunakan cookies untuk meningkatkan pengalaman pengguna.
+                    We use cookies to enhance user experience.
                 """.trimIndent(),
                 style = MaterialTheme.typography.bodyMedium
             )

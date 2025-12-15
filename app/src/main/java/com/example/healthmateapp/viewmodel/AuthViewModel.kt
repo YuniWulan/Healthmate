@@ -21,6 +21,7 @@ sealed class AuthState {
 }
 
 class AuthViewModel : ViewModel() {
+
     private val auth: FirebaseAuth = Firebase.auth
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 
@@ -40,43 +41,49 @@ class AuthViewModel : ViewModel() {
         private const val TAG = "AuthViewModel"
     }
 
-    init {
-        // Check if user is already logged in
-        _currentUser.value = auth.currentUser
-        if (auth.currentUser != null) {
-            _authState.value = AuthState.Success(auth.currentUser)
-            loadUserRole()
+    // ---------------- Login ----------------
+    fun login(email: String, password: String) {
+        if (email.isEmpty() || password.isEmpty()) {
+            _authState.value = AuthState.Error("Please fill in all fields")
+            return
         }
-    }
-
-    // Load user role from Firestore
-    private fun loadUserRole() {
-        val uid = auth.currentUser?.uid ?: return
 
         viewModelScope.launch {
             try {
-                val docSnapshot = firestore.collection("User")
-                    .document(uid)
-                    .get()
-                    .await()
+                _authState.value = AuthState.Loading
 
-                val role = docSnapshot.getString("role") ?: "patient"
-                val name = docSnapshot.getString("username") ?: auth.currentUser?.displayName
+                val result = auth.signInWithEmailAndPassword(email, password).await()
+                val user = result.user ?: throw Exception("User is null after login")
+                _currentUser.value = user
 
+                // Load role dan username
+                val role = loadUserRole()
                 _userRole.value = role
-                _userName.value = name
 
-                Log.d(TAG, "Loaded user role: $role, username: $name")
-
+                // Emit success setelah role dan username siap
+                _authState.value = AuthState.Success(user)
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading user role: ${e.message}", e)
-                _userRole.value = "patient"
-                _userName.value = auth.currentUser?.displayName ?: ""
+                _authState.value = AuthState.Error(e.message ?: "Login failed")
             }
         }
     }
 
-    // Register new user with email, password, and role
+
+    // ---------------- Load user role ----------------
+    private suspend fun loadUserRole(): String {
+        val uid = auth.currentUser?.uid ?: return "patient"
+        return try {
+            val docSnapshot = firestore.collection("User").document(uid).get().await()
+            val role = docSnapshot.getString("role") ?: "patient"
+            _userName.value = docSnapshot.getString("username")
+            role
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error loading user role: ${e.message}", e)
+            "patient"
+        }
+    }
+
+    // ---------------- Register ----------------
     fun register(email: String, password: String, username: String, role: String) {
         if (email.isEmpty() || password.isEmpty() || username.isEmpty()) {
             _authState.value = AuthState.Error("Please fill in all fields")
@@ -98,11 +105,8 @@ class AuthViewModel : ViewModel() {
                 _authState.value = AuthState.Loading
                 Log.d(TAG, "Starting registration for $email with role: $role")
 
-                // Create user with email and password
                 val result = auth.createUserWithEmailAndPassword(email, password).await()
                 val uid = result.user?.uid ?: throw Exception("User ID is null")
-
-                Log.d(TAG, "Firebase Auth user created with UID: $uid")
 
                 // Update display name
                 result.user?.updateProfile(
@@ -111,10 +115,7 @@ class AuthViewModel : ViewModel() {
                         .build()
                 )?.await()
 
-                Log.d(TAG, "Display name updated to: $username")
-
-
-                // Create user document in Firestore
+                // Create user document
                 val userData = hashMapOf(
                     "uid" to uid,
                     "email" to email,
@@ -123,26 +124,17 @@ class AuthViewModel : ViewModel() {
                     "createdAt" to System.currentTimeMillis()
                 )
 
-                firestore.collection("User")
-                    .document(uid)
-                    .set(userData)
-                    .await()
+                firestore.collection("User").document(uid).set(userData).await()
 
-                Log.d(TAG, "✅ User document created in Firestore")
-
-                // Create role-specific subcollection based on role
-                if (role == "patient") {
-                    createPatientProfile(uid, username)
-                } else if (role == "assistant") {
-                    createAssistantProfile(uid, username)
-                }
+                // Role-specific profile
+                if (role == "patient") createPatientProfile(uid, username)
+                else if (role == "assistant") createAssistantProfile(uid, username)
 
                 _userRole.value = role
                 _currentUser.value = result.user
                 _authState.value = AuthState.Success(result.user)
 
                 Log.d(TAG, "✅ Registration completed successfully!")
-
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Registration error: ${e.message}", e)
                 _authState.value = AuthState.Error(
@@ -152,108 +144,53 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    // Create patient profile structure
+    // ---------------- Create patient profile ----------------
     private suspend fun createPatientProfile(uid: String, username: String) {
-        try {
-            Log.d(TAG, "Creating patient profile for UID: $uid")
+        val patientData = hashMapOf(
+            "patientId" to uid,
+            "name" to username,
+            "createdAt" to System.currentTimeMillis()
+        )
 
-            // Create patient subcollection with patient document
-            val patientData = hashMapOf(
-                "patientId" to uid,
-                "name" to username,
-                "createdAt" to System.currentTimeMillis()
-            )
+        firestore.collection("User")
+            .document(uid)
+            .collection("patient")
+            .document(uid)
+            .set(patientData)
+            .await()
 
-            firestore.collection("User")
-                .document(uid)
-                .collection("patient")
-                .document(uid) // Using uid as patient_id
-                .set(patientData)
-                .await()
+        val initialHealthMetrics = hashMapOf(
+            "initialized" to true,
+            "createdAt" to System.currentTimeMillis()
+        )
 
-            Log.d(TAG, "✅ Patient profile created at: User/$uid/patient/$uid")
-
-            // Initialize empty healthMetrics document
-            val initialHealthMetrics = hashMapOf(
-                "initialized" to true,
-                "createdAt" to System.currentTimeMillis()
-            )
-
-            firestore.collection("User")
-                .document(uid)
-                .collection("patient")
-                .document(uid)
-                .collection("healthMetrics")
-                .document("latest")
-                .set(initialHealthMetrics)
-                .await()
-
-            Log.d(TAG, "✅ Health metrics initialized")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error creating patient profile: ${e.message}", e)
-            throw e
-        }
+        firestore.collection("User")
+            .document(uid)
+            .collection("patient")
+            .document(uid)
+            .collection("healthMetrics")
+            .document("latest")
+            .set(initialHealthMetrics)
+            .await()
     }
 
-    // Create assistant profile structure
+    // ---------------- Create assistant profile ----------------
     private suspend fun createAssistantProfile(uid: String, username: String) {
-        try {
-            Log.d(TAG, "Creating assistant profile for UID: $uid")
+        val assistantData = hashMapOf(
+            "assistantId" to uid,
+            "name" to username,
+            "createdAt" to System.currentTimeMillis()
+        )
 
-            // Create assistant subcollection with assistant document
-            val assistantData = hashMapOf(
-                "assistantId" to uid,
-                "name" to username,
-                "createdAt" to System.currentTimeMillis()
-            )
-
-            firestore.collection("User")
-                .document(uid)
-                .collection("assistant")
-                .document(uid)
-                .set(assistantData)
-                .await()
-
-            Log.d(TAG, "✅ Assistant profile created at: User/$uid/assistant/$uid")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error creating assistant profile: ${e.message}", e)
-            throw e
-        }
+        firestore.collection("User")
+            .document(uid)
+            .collection("assistant")
+            .document(uid)
+            .set(assistantData)
+            .await()
     }
 
-    // Login with email and password
-    fun login(email: String, password: String) {
-        if (email.isEmpty() || password.isEmpty()) {
-            _authState.value = AuthState.Error("Please fill in all fields")
-            return
-        }
-
-        viewModelScope.launch {
-            try {
-                _authState.value = AuthState.Loading
-                Log.d(TAG, "Attempting login for: $email")
-
-                // Sign in with email and password
-                val result = auth.signInWithEmailAndPassword(email, password).await()
-
-                _currentUser.value = result.user
-                loadUserRole() // Load user role after login
-                _authState.value = AuthState.Success(result.user)
-
-                Log.d(TAG, "✅ Login successful!")
-
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ Login error: ${e.message}", e)
-                _authState.value = AuthState.Error(
-                    e.message ?: "Login failed. Please check your credentials."
-                )
-            }
-        }
-    }
-
-    // Logout
+    // ---------------- Logout ----------------
     fun logout() {
         auth.signOut()
         _currentUser.value = null
@@ -262,7 +199,7 @@ class AuthViewModel : ViewModel() {
         Log.d(TAG, "User logged out")
     }
 
-    // Reset password
+    // ---------------- Reset password ----------------
     fun resetPassword(email: String) {
         if (email.isEmpty()) {
             _authState.value = AuthState.Error("Please enter your email")
@@ -273,7 +210,7 @@ class AuthViewModel : ViewModel() {
             try {
                 _authState.value = AuthState.Loading
                 auth.sendPasswordResetEmail(email).await()
-                _authState.value = AuthState.Error("Password reset email sent! Check your inbox.")
+                _authState.value = AuthState.Success(null) // atau bisa pakai message khusus
                 Log.d(TAG, "Password reset email sent to: $email")
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending reset email: ${e.message}", e)
@@ -284,9 +221,8 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    // Reset auth state to idle
+    // ---------------- Reset auth state ----------------
     fun resetAuthState() {
         _authState.value = AuthState.Idle
     }
 }
-
