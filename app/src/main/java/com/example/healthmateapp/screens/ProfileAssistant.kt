@@ -26,6 +26,7 @@ import com.example.healthmateapp.viewmodel.AuthViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantProfileScreen(
+    userName: String = "Bob Johnson Andreas",
     authViewModel: AuthViewModel = viewModel(),
     onHomeClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
@@ -35,7 +36,6 @@ fun AssistantProfileScreen(
     onHelpSupportClick: () -> Unit = {}
 ) {
 
-    val userName = authViewModel.userName.collectAsState().value ?: ""
     val userRole = "Caregiver"
     //val userRole = authViewModel.userRole.collectAsState().value ?: "Caregiver"
 
